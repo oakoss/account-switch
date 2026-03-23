@@ -41,6 +41,6 @@ jobs:
 
       - run: pnpm check-pkg
 
-      # OIDC trusted publishing — no NODE_AUTH_TOKEN needed
-      # Configure trusted publisher at https://www.npmjs.com/package/account-switch/access
-      - run: pnpm publish --access public --no-git-checks
+      # npm CLI for OIDC trusted publishing (pnpm doesn't support OIDC yet)
+      # Setup: https://www.npmjs.com/package/account-switch/access → Trusted Publishers
+      - run: npm publish --access public
