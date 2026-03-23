@@ -21,13 +21,11 @@ jobs:
         with:
           release-type: node
 
-  publish:
+  # Gate: run checks before publish (same workflow for OIDC compatibility)
+  verify:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +39,19 @@ jobs:
 
       - run: pnpm check-pkg
 
+  publish:
+    needs: [release-please, verify]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - run: pnpm check-pkg
+
       # npm CLI for OIDC trusted publishing (pnpm doesn't support OIDC yet)
-      # Setup: https://www.npmjs.com/package/account-switch/access → Trusted Publishers
       - run: npm publish --access public
