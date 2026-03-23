@@ -12,7 +12,10 @@
   "homepage": "https://github.com/oakoss/account-switch",
   "bugs": "https://github.com/oakoss/account-switch/issues",
   "license": "MIT",
-  "repository": "github:oakoss/account-switch",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oakoss/account-switch.git"
+  },
   "bin": {
     "acsw": "./dist/acsw.js"
   },

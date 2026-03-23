@@ -32,8 +32,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup
-        with:
-          registry-url: https://registry.npmjs.org
 
       - run: bun x tsc --noEmit
 
@@ -43,6 +41,6 @@ jobs:
 
       - run: pnpm check-pkg
 
-      - run: pnpm publish --provenance --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # OIDC trusted publishing — no NODE_AUTH_TOKEN needed
+      # Configure trusted publisher at https://www.npmjs.com/package/account-switch/access
+      - run: pnpm publish --access public --no-git-checks
