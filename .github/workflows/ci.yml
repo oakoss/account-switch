@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - run: bun x tsc --noEmit
+
+      - run: pnpm lint
+
+      - run: pnpm format:check
+
+      - run: pnpm lint:md
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - run: bun test
+
+  package:
+    name: Package Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+
+      - run: pnpm check-pkg
+
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [static-analysis, tests, package]
+    steps:
+      - name: Summarize results
+        run: |
+          echo "## CI Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | Status | Required |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Static analysis | \`${{ needs.static-analysis.result }}\` | Yes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests | \`${{ needs.tests.result }}\` | Yes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package validation | \`${{ needs.package.result }}\` | Yes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          fail_if_bad() {
+            if [ "$2" = "failure" ] || [ "$2" = "cancelled" ]; then
+              echo "Job '$1' failed or was cancelled"
+              exit 1
+            fi
+          }
+
+          fail_if_bad "static-analysis" "${{ needs.static-analysis.result }}"
+          fail_if_bad "tests" "${{ needs.tests.result }}"
+          fail_if_bad "package" "${{ needs.package.result }}"

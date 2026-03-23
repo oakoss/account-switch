@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "objectWrap": "collapse",
+  "printWidth": 80,
+  "sortPackageJson": { "sortScripts": true },
+  "sortImports": {
+    "groups": [
+      "side_effect",
+      "type-import",
+      ["value-builtin", "value-external"],
+      "type-internal",
+      ["value-internal"],
+      ["type-parent", "type-sibling", "type-index"],
+      ["value-parent", "value-sibling", "value-index"],
+      "unknown"
+    ],
+    "newlinesBetween": true
+  },
+  "ignorePatterns": [
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "bun.lock",
+    "node_modules/",
+    "dist/",
+    "docs/",
+    "*.log",
+    "*.md"
+  ]
+}

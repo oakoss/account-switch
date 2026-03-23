@@ -1,0 +1,26 @@
+output:
+  - failure
+  - execution_out
+
+pre-commit:
+  parallel: true
+  commands:
+    typecheck:
+      glob: '*.ts'
+      run: pnpm typecheck --pretty false
+    oxlint:
+      glob: '*.ts'
+      run: pnpm oxlint -c oxlintrc.json --fix {staged_files}
+      stage_fixed: true
+    lint-md:
+      glob: '*.md'
+      run: pnpm markdownlint-cli2 --fix {staged_files}
+      stage_fixed: true
+    format:
+      run: pnpm oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm commitlint --edit "$1"
