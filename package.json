@@ -14,10 +14,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/oakoss/account-switch.git"
+    "url": "git+https://github.com/oakoss/account-switch.git"
   },
   "bin": {
-    "acsw": "./dist/acsw.js"
+    "acsw": "dist/acsw.js"
   },
   "files": [
     "dist"
@@ -25,9 +25,10 @@
   "type": "module",
   "scripts": {
     "attw": "attw --pack .",
-    "build": "bun build src/index.ts --compile --outfile dist/acsw",
-    "build:js": "bun build src/index.ts --target node --outfile dist/acsw.js",
+    "build": "bun run clean && bun build src/index.ts --compile --outfile dist/acsw",
+    "build:js": "bun run clean && bun build src/index.ts --target node --outfile dist/acsw.js",
     "check-pkg": "bun run build:js && pnpm publint && pnpm attw",
+    "clean": "rm -rf dist",
     "dev": "bun run src/index.ts",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
