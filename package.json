@@ -1,5 +1,5 @@
 {
-  "name": "account-switch",
+  "name": "@oakoss/account-switch",
   "version": "0.1.0",
   "description": "Switch between CLI tool accounts. Supports Claude Code OAuth, with more providers planned.",
   "keywords": [
