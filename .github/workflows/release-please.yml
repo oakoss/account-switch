@@ -35,6 +35,10 @@ jobs:
         with:
           registry-url: https://registry.npmjs.org
 
+      - run: bun x tsc --noEmit
+
+      - run: pnpm lint
+
       - run: bun test
 
       - run: pnpm check-pkg
