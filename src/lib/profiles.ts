@@ -1,23 +1,35 @@
 import { mkdir, readdir, rm, chmod } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import type {
   ProfileState,
   ProfileMeta,
   ProfileInfo,
+  ProfilesConfig,
   Provider,
   ProviderResolver,
   ProviderSnapshot,
 } from './types';
 
-import {
-  PROFILES_DIR,
-  STATE_FILE,
-  PROFILE_NAME_REGEX,
-  profileDir,
-  profileCredentialsFile,
-  profileAccountFile,
-  profileMetaFile,
-} from './constants';
+import { PROFILES_DIR, STATE_FILE, PROFILE_NAME_REGEX } from './constants';
+
+const DEFAULT_CONFIG: ProfilesConfig = {
+  profilesDir: PROFILES_DIR,
+  stateFile: STATE_FILE,
+};
+
+function profilePaths(config: ProfilesConfig, name: string) {
+  if (!PROFILE_NAME_REGEX.test(name)) {
+    throw new Error(`Invalid profile name: "${name}"`);
+  }
+  const dir = join(config.profilesDir, name);
+  return {
+    dir,
+    credentials: join(dir, 'credentials.json'),
+    account: join(dir, 'account.json'),
+    meta: join(dir, 'profile.json'),
+  };
+}
 
 async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
@@ -67,15 +79,18 @@ async function writeJson(
   }
 }
 
-export async function readState(path?: string): Promise<ProfileState> {
-  return readJsonWithFallback<ProfileState>(path ?? STATE_FILE, {
-    active: null,
-  });
+export async function readState(
+  config: ProfilesConfig = DEFAULT_CONFIG,
+): Promise<ProfileState> {
+  return readJsonWithFallback<ProfileState>(config.stateFile, { active: null });
 }
 
-async function writeState(state: ProfileState): Promise<void> {
-  await ensureDir(PROFILES_DIR);
-  await writeJson(STATE_FILE, state);
+async function writeState(
+  state: ProfileState,
+  config: ProfilesConfig,
+): Promise<void> {
+  await ensureDir(config.profilesDir);
+  await writeJson(config.stateFile, state);
 }
 
 export function validateProfileName(name: string): string | null {
@@ -86,8 +101,12 @@ export function validateProfileName(name: string): string | null {
   return null;
 }
 
-export async function profileExists(name: string): Promise<boolean> {
-  const file = Bun.file(profileMetaFile(name));
+export async function profileExists(
+  name: string,
+  config: ProfilesConfig = DEFAULT_CONFIG,
+): Promise<boolean> {
+  const { meta } = profilePaths(config, name);
+  const file = Bun.file(meta);
   return file.exists();
 }
 
@@ -121,25 +140,29 @@ function buildProfileInfo(
 }
 
 async function readProfileSnapshot(
+  config: ProfilesConfig,
   name: string,
 ): Promise<ProviderSnapshot | null> {
-  const creds = await readJsonOptional(profileCredentialsFile(name));
+  const { credentials, account } = profilePaths(config, name);
+  const creds = await readJsonOptional(credentials);
   if (!creds) return null;
-  const identity = await readJsonOptional(profileAccountFile(name));
+  const identity = await readJsonOptional(account);
   return { credentials: creds, identity };
 }
 
 async function writeProfileSnapshot(
+  config: ProfilesConfig,
   name: string,
   snapshot: ProviderSnapshot,
 ): Promise<void> {
-  await writeJson(profileCredentialsFile(name), snapshot.credentials, 0o600);
+  const { credentials, account } = profilePaths(config, name);
+  await writeJson(credentials, snapshot.credentials, 0o600);
   if (snapshot.identity) {
-    await writeJson(profileAccountFile(name), snapshot.identity);
+    await writeJson(account, snapshot.identity);
   } else {
     const { unlink } = await import('node:fs/promises');
     try {
-      await unlink(profileAccountFile(name));
+      await unlink(account);
     } catch (error: unknown) {
       if (
         error &&
@@ -155,13 +178,14 @@ async function writeProfileSnapshot(
 
 export async function listProfiles(
   resolve: ProviderResolver,
+  config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<ProfileInfo[]> {
-  await ensureDir(PROFILES_DIR);
-  const state = await readState();
+  await ensureDir(config.profilesDir);
+  const state = await readState(config);
 
   let dirEntries: string[];
   try {
-    dirEntries = await readdir(PROFILES_DIR);
+    dirEntries = await readdir(config.profilesDir);
   } catch (error: unknown) {
     if (
       error &&
@@ -179,11 +203,12 @@ export async function listProfiles(
     const name = String(entryName);
     if (!PROFILE_NAME_REGEX.test(name)) continue;
 
-    const meta = await readJsonOptional<ProfileMeta>(profileMetaFile(name));
+    const { meta: metaPath } = profilePaths(config, name);
+    const meta = await readJsonOptional<ProfileMeta>(metaPath);
     if (!meta) continue;
 
     const provider = resolve(meta.provider ?? 'claude');
-    const snapshot = await readProfileSnapshot(name);
+    const snapshot = await readProfileSnapshot(config, name);
     profiles.push(
       buildProfileInfo(name, meta, state.active === name, snapshot, provider),
     );
@@ -195,8 +220,9 @@ export async function listProfiles(
 export async function addOAuthProfile(
   name: string,
   provider: Provider,
+  config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<void> {
-  const dir = profileDir(name);
+  const { dir, meta: metaPath } = profilePaths(config, name);
   await ensureDir(dir);
 
   const snapshot = await provider.snapshot();
@@ -205,15 +231,15 @@ export async function addOAuthProfile(
   }
 
   try {
-    await writeProfileSnapshot(name, snapshot);
-    await writeJson(profileMetaFile(name), {
+    await writeProfileSnapshot(config, name, snapshot);
+    await writeJson(metaPath, {
       name,
       type: 'oauth',
       provider: provider.name,
       createdAt: new Date().toISOString(),
       lastUsed: new Date().toISOString(),
     });
-    await writeState({ active: name });
+    await writeState({ active: name }, config);
   } catch (error) {
     try {
       await rm(dir, { recursive: true });
@@ -227,16 +253,21 @@ export async function addOAuthProfile(
 export async function switchProfile(
   name: string,
   resolve: ProviderResolver,
+  config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<ProfileInfo> {
-  if (!(await profileExists(name))) {
+  if (!(await profileExists(name, config))) {
     throw new Error(`Profile "${name}" does not exist`);
   }
 
-  const state = await readState();
-  const targetMeta = await readJsonWithFallback<ProfileMeta>(
-    profileMetaFile(name),
-    { name, type: 'oauth', provider: 'claude', createdAt: '', lastUsed: null },
-  );
+  const state = await readState(config);
+  const { meta: metaPath } = profilePaths(config, name);
+  const targetMeta = await readJsonWithFallback<ProfileMeta>(metaPath, {
+    name,
+    type: 'oauth',
+    provider: 'claude',
+    createdAt: '',
+    lastUsed: null,
+  });
 
   const provider = resolve(targetMeta.provider ?? 'claude');
 
@@ -244,10 +275,11 @@ export async function switchProfile(
   if (
     state.active &&
     state.active !== name &&
-    (await profileExists(state.active))
+    (await profileExists(state.active, config))
   ) {
+    const { meta: outgoingMetaPath } = profilePaths(config, state.active);
     const outgoingMeta = await readJsonWithFallback<ProfileMeta>(
-      profileMetaFile(state.active),
+      outgoingMetaPath,
       {
         name: state.active,
         type: 'oauth',
@@ -259,12 +291,12 @@ export async function switchProfile(
     const outgoingProvider = resolve(outgoingMeta.provider ?? 'claude');
     const currentSnapshot = await outgoingProvider.snapshot();
     if (currentSnapshot) {
-      await writeProfileSnapshot(state.active, currentSnapshot);
+      await writeProfileSnapshot(config, state.active, currentSnapshot);
     }
   }
 
   if (targetMeta.type === 'oauth') {
-    const targetSnapshot = await readProfileSnapshot(name);
+    const targetSnapshot = await readProfileSnapshot(config, name);
     if (!targetSnapshot) {
       throw new Error(`No credentials found for profile "${name}"`);
     }
@@ -275,8 +307,8 @@ export async function switchProfile(
     try {
       await provider.restore(targetSnapshot);
       targetMeta.lastUsed = new Date().toISOString();
-      await writeJson(profileMetaFile(name), targetMeta);
-      await writeState({ active: name });
+      await writeJson(metaPath, targetMeta);
+      await writeState({ active: name }, config);
     } catch (error) {
       let rollbackOk = false;
       let rollbackMsg = '';
@@ -302,13 +334,13 @@ export async function switchProfile(
     }
   } else {
     targetMeta.lastUsed = new Date().toISOString();
-    await writeJson(profileMetaFile(name), targetMeta);
-    await writeState({ active: name });
+    await writeJson(metaPath, targetMeta);
+    await writeState({ active: name }, config);
   }
 
   let snapshot: ProviderSnapshot | null = null;
   try {
-    snapshot = await readProfileSnapshot(name);
+    snapshot = await readProfileSnapshot(config, name);
   } catch {
     // Non-fatal: switch succeeded, just can't read back display info
   }
@@ -319,19 +351,21 @@ export async function switchProfile(
 export async function removeProfile(
   name: string,
   resolve: ProviderResolver,
+  config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<void> {
-  if (!(await profileExists(name))) {
+  if (!(await profileExists(name, config))) {
     throw new Error(`Profile "${name}" does not exist`);
   }
 
-  const meta = await readJsonOptional<ProfileMeta>(profileMetaFile(name));
+  const { dir, meta: metaPath } = profilePaths(config, name);
+  const meta = await readJsonOptional<ProfileMeta>(metaPath);
   const provider = resolve(meta?.provider ?? 'claude');
-  const state = await readState();
+  const state = await readState(config);
 
   if (state.active === name) {
     await provider.clear();
-    await writeState({ active: null });
+    await writeState({ active: null }, config);
   }
 
-  await rm(profileDir(name), { recursive: true });
+  await rm(dir, { recursive: true });
 }

@@ -48,7 +48,9 @@ export type ProfileInfo = {
 
 export type RepairResult = { profile: string; issue: string; fixed: boolean };
 
-export type RepairConfig = { profilesDir: string; stateFile: string };
+export type ProfilesConfig = { profilesDir: string; stateFile: string };
+
+export type RepairConfig = ProfilesConfig;
 
 export type RepairSummary = { results: RepairResult[]; checked: number };
 

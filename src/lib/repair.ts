@@ -148,7 +148,7 @@ export async function repairProfiles(
 
   let state;
   try {
-    state = await readState(stateFile);
+    state = await readState({ profilesDir, stateFile });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     results.push({

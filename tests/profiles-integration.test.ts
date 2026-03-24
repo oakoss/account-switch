@@ -1,49 +1,33 @@
-import { describe, it, expect, beforeEach, afterAll, mock } from 'bun:test';
-import { mkdtempSync } from 'node:fs';
-import { rm, stat, readdir, mkdir, chmod } from 'node:fs/promises';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { mkdtemp, rm, stat, readdir, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type {
+  ProfilesConfig,
   Provider,
   ProviderResolver,
   ProviderSnapshot,
 } from '../src/lib/types';
 
-// Create a stable temp dir at module scope so mock.module can reference it
-const TEST_DIR = mkdtempSync(join(tmpdir(), 'acsw-int-'));
-
-mock.module('../src/lib/constants', () => ({
-  PROFILES_DIR: TEST_DIR,
-  STATE_FILE: join(TEST_DIR, 'state.json'),
-  PROFILE_NAME_REGEX: /^[a-zA-Z0-9_-]+$/,
-  profileDir: (name: string) => join(TEST_DIR, name),
-  profileCredentialsFile: (name: string) =>
-    join(TEST_DIR, name, 'credentials.json'),
-  profileAccountFile: (name: string) => join(TEST_DIR, name, 'account.json'),
-  profileMetaFile: (name: string) => join(TEST_DIR, name, 'profile.json'),
-}));
-
-const {
+import {
   addOAuthProfile,
   switchProfile,
   removeProfile,
   listProfiles,
   readState,
-} = await import('../src/lib/profiles');
+} from '../src/lib/profiles';
 
-const stateFile = join(TEST_DIR, 'state.json');
+let tempDir: string;
+let config: ProfilesConfig;
 
-afterAll(async () => {
-  await rm(TEST_DIR, { recursive: true });
+beforeEach(async () => {
+  tempDir = await mkdtemp(join(tmpdir(), 'acsw-int-'));
+  config = { profilesDir: tempDir, stateFile: join(tempDir, 'state.json') };
 });
 
-// Clean test dir between tests
-beforeEach(async () => {
-  const entries = await readdir(TEST_DIR);
-  for (const entry of entries) {
-    await rm(join(TEST_DIR, entry), { recursive: true, force: true });
-  }
+afterEach(async () => {
+  await rm(tempDir, { recursive: true });
 });
 
 function createMockProvider(
@@ -93,7 +77,7 @@ async function setupProfile(
   identity: unknown,
   providerName = 'mock',
 ) {
-  const dir = join(TEST_DIR, name);
+  const dir = join(tempDir, name);
   await mkdir(dir, { recursive: true });
   const credPath = join(dir, 'credentials.json');
   await Bun.write(credPath, JSON.stringify(creds));
@@ -122,34 +106,34 @@ describe('addOAuthProfile', () => {
       identity: { email: 'test@example.com' },
     });
 
-    await addOAuthProfile('work', provider);
+    await addOAuthProfile('work', provider, config);
 
     const creds = await Bun.file(
-      join(TEST_DIR, 'work', 'credentials.json'),
+      join(tempDir, 'work', 'credentials.json'),
     ).json();
     expect(creds.token).toBe('abc');
 
     const account = await Bun.file(
-      join(TEST_DIR, 'work', 'account.json'),
+      join(tempDir, 'work', 'account.json'),
     ).json();
     expect(account.email).toBe('test@example.com');
 
-    const meta = await Bun.file(join(TEST_DIR, 'work', 'profile.json')).json();
+    const meta = await Bun.file(join(tempDir, 'work', 'profile.json')).json();
     expect(meta.name).toBe('work');
     expect(meta.type).toBe('oauth');
     expect(meta.provider).toBe('mock');
 
-    const st = await stat(join(TEST_DIR, 'work', 'credentials.json'));
+    const st = await stat(join(tempDir, 'work', 'credentials.json'));
     expect(st.mode & 0o777).toBe(0o600);
 
-    const state = await readState();
+    const state = await readState(config);
     expect(state.active).toBe('work');
   });
 
   it('throws when provider has no credentials', async () => {
     const provider = createMockProvider(null);
 
-    await expect(addOAuthProfile('empty', provider)).rejects.toThrow(
+    await expect(addOAuthProfile('empty', provider, config)).rejects.toThrow(
       'No OAuth credentials found',
     );
   });
@@ -170,9 +154,9 @@ describe('switchProfile', () => {
       { token: 'work-tok' },
       { email: 'work@test.com' },
     );
-    await Bun.write(stateFile, JSON.stringify({ active: null }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
 
-    const result = await switchProfile('work', resolve);
+    const result = await switchProfile('work', resolve, config);
 
     expect(provider.restoreCalls).toHaveLength(1);
     expect(
@@ -181,7 +165,7 @@ describe('switchProfile', () => {
     expect(result.email).toBe('work@test.com');
     expect(result.isActive).toBe(true);
 
-    const state = await readState();
+    const state = await readState(config);
     expect(state.active).toBe('work');
   });
 
@@ -202,14 +186,59 @@ describe('switchProfile', () => {
       { token: 'work-tok' },
       { email: 'work@test.com' },
     );
-    await Bun.write(stateFile, JSON.stringify({ active: 'personal' }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'personal' }));
 
-    await switchProfile('work', resolve);
+    await switchProfile('work', resolve, config);
 
     const savedCreds = await Bun.file(
-      join(TEST_DIR, 'personal', 'credentials.json'),
+      join(tempDir, 'personal', 'credentials.json'),
     ).json();
     expect(savedCreds.token).toBe('personal-live');
+  });
+
+  it('skips outgoing snapshot when switching to the already-active profile', async () => {
+    const provider = createMockProvider({
+      credentials: { token: 'live' },
+      identity: null,
+    });
+    const resolve = mockResolver(provider);
+
+    await setupProfile('only', { token: 'stored' }, null);
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'only' }));
+
+    const result = await switchProfile('only', resolve, config);
+
+    const storedCreds = await Bun.file(
+      join(tempDir, 'only', 'credentials.json'),
+    ).json();
+    expect(storedCreds.token).toBe('stored');
+    expect(result.isActive).toBe(true);
+  });
+
+  it('handles non-oauth profile type without credential restore', async () => {
+    const provider = createMockProvider(null);
+    const resolve = mockResolver(provider);
+
+    const dir = join(tempDir, 'api-prof');
+    await mkdir(dir, { recursive: true });
+    await Bun.write(
+      join(dir, 'profile.json'),
+      JSON.stringify({
+        name: 'api-prof',
+        type: 'api-key',
+        provider: 'mock',
+        createdAt: '',
+        lastUsed: null,
+      }),
+    );
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
+
+    const result = await switchProfile('api-prof', resolve, config);
+
+    expect(provider.restoreCalls).toHaveLength(0);
+    expect(result.isActive).toBe(true);
+    const state = await readState(config);
+    expect(state.active).toBe('api-prof');
   });
 
   it('rolls back on restore failure', async () => {
@@ -231,9 +260,9 @@ describe('switchProfile', () => {
     const resolve = mockResolver(provider);
 
     await setupProfile('target', { token: 'target-tok' }, null);
-    await Bun.write(stateFile, JSON.stringify({ active: null }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
 
-    await expect(switchProfile('target', resolve)).rejects.toThrow(
+    await expect(switchProfile('target', resolve, config)).rejects.toThrow(
       'Previous credentials restored',
     );
   });
@@ -258,64 +287,17 @@ describe('switchProfile', () => {
     const resolve = mockResolver(provider);
 
     await setupProfile('target', { token: 'target-tok' }, null);
-    await Bun.write(stateFile, JSON.stringify({ active: null }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
 
-    await expect(switchProfile('target', resolve)).rejects.toThrow(
+    await expect(switchProfile('target', resolve, config)).rejects.toThrow(
       'Could not restore previous credentials',
     );
-  });
-
-  it('skips outgoing snapshot when switching to the already-active profile', async () => {
-    const provider = createMockProvider({
-      credentials: { token: 'live' },
-      identity: null,
-    });
-    const resolve = mockResolver(provider);
-
-    await setupProfile('only', { token: 'stored' }, null);
-    await Bun.write(stateFile, JSON.stringify({ active: 'only' }));
-
-    const result = await switchProfile('only', resolve);
-
-    // restore is called (target snapshot applied), but outgoing snapshot
-    // should NOT overwrite stored credentials since active === target
-    const storedCreds = await Bun.file(
-      join(TEST_DIR, 'only', 'credentials.json'),
-    ).json();
-    expect(storedCreds.token).toBe('stored');
-    expect(result.isActive).toBe(true);
-  });
-
-  it('handles non-oauth profile type without credential restore', async () => {
-    const provider = createMockProvider(null);
-    const resolve = mockResolver(provider);
-
-    const dir = join(TEST_DIR, 'api-prof');
-    await mkdir(dir, { recursive: true });
-    await Bun.write(
-      join(dir, 'profile.json'),
-      JSON.stringify({
-        name: 'api-prof',
-        type: 'api-key',
-        provider: 'mock',
-        createdAt: '',
-        lastUsed: null,
-      }),
-    );
-    await Bun.write(stateFile, JSON.stringify({ active: null }));
-
-    const result = await switchProfile('api-prof', resolve);
-
-    expect(provider.restoreCalls).toHaveLength(0);
-    expect(result.isActive).toBe(true);
-    const state = await readState();
-    expect(state.active).toBe('api-prof');
   });
 
   it('throws for nonexistent profile', async () => {
     const resolve = mockResolver(createMockProvider(null));
 
-    await expect(switchProfile('ghost', resolve)).rejects.toThrow(
+    await expect(switchProfile('ghost', resolve, config)).rejects.toThrow(
       'does not exist',
     );
   });
@@ -323,7 +305,7 @@ describe('switchProfile', () => {
   it('throws when target has no credentials', async () => {
     const resolve = mockResolver(createMockProvider(null));
 
-    const dir = join(TEST_DIR, 'no-creds');
+    const dir = join(tempDir, 'no-creds');
     await mkdir(dir, { recursive: true });
     await Bun.write(
       join(dir, 'profile.json'),
@@ -335,9 +317,9 @@ describe('switchProfile', () => {
         lastUsed: null,
       }),
     );
-    await Bun.write(stateFile, JSON.stringify({ active: null }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
 
-    await expect(switchProfile('no-creds', resolve)).rejects.toThrow(
+    await expect(switchProfile('no-creds', resolve, config)).rejects.toThrow(
       'No credentials found',
     );
   });
@@ -350,11 +332,11 @@ describe('removeProfile', () => {
     const resolve = mockResolver(createMockProvider(null));
 
     await setupProfile('doomed', { token: 'tok' }, null);
-    await Bun.write(stateFile, JSON.stringify({ active: null }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
 
-    await removeProfile('doomed', resolve);
+    await removeProfile('doomed', resolve, config);
 
-    const entries = await readdir(TEST_DIR);
+    const entries = await readdir(tempDir);
     expect(entries).not.toContain('doomed');
   });
 
@@ -366,12 +348,12 @@ describe('removeProfile', () => {
     const resolve = mockResolver(provider);
 
     await setupProfile('active-one', { token: 'tok' }, null);
-    await Bun.write(stateFile, JSON.stringify({ active: 'active-one' }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'active-one' }));
 
-    await removeProfile('active-one', resolve);
+    await removeProfile('active-one', resolve, config);
 
     expect(provider.clearCalled).toBe(true);
-    const state = await readState();
+    const state = await readState(config);
     expect(state.active).toBeNull();
   });
 
@@ -380,15 +362,15 @@ describe('removeProfile', () => {
     const resolve = mockResolver(provider);
 
     await setupProfile('inactive', { token: 'tok' }, null);
-    await Bun.write(stateFile, JSON.stringify({ active: 'other' }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'other' }));
 
-    await removeProfile('inactive', resolve);
+    await removeProfile('inactive', resolve, config);
     expect(provider.clearCalled).toBe(false);
   });
 
   it('throws for nonexistent profile', async () => {
     const resolve = mockResolver(createMockProvider(null));
-    await expect(removeProfile('ghost', resolve)).rejects.toThrow(
+    await expect(removeProfile('ghost', resolve, config)).rejects.toThrow(
       'does not exist',
     );
   });
@@ -406,9 +388,9 @@ describe('listProfiles', () => {
       { email: 'a@test.com', org: 'Acme' },
     );
     await setupProfile('beta', { tier: 'pro' }, { email: 'b@test.com' });
-    await Bun.write(stateFile, JSON.stringify({ active: 'alpha' }));
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'alpha' }));
 
-    const profiles = await listProfiles(resolve);
+    const profiles = await listProfiles(resolve, config);
 
     expect(profiles).toHaveLength(2);
     expect(profiles[0].name).toBe('alpha');
@@ -423,7 +405,7 @@ describe('listProfiles', () => {
 
   it('returns empty array when no profiles exist', async () => {
     const resolve = mockResolver(createMockProvider(null));
-    const profiles = await listProfiles(resolve);
+    const profiles = await listProfiles(resolve, config);
     expect(profiles).toHaveLength(0);
   });
 
@@ -433,7 +415,7 @@ describe('listProfiles', () => {
     await setupProfile('zebra', {}, null);
     await setupProfile('alpha', {}, null);
 
-    const profiles = await listProfiles(resolve);
+    const profiles = await listProfiles(resolve, config);
     expect(profiles[0].name).toBe('alpha');
     expect(profiles[1].name).toBe('zebra');
   });
