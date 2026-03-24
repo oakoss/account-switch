@@ -266,8 +266,7 @@ Integration tests use `mock.module` to redirect `constants.ts` paths to a temp d
 - `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
 - Repair library — 14 tests via `RepairConfig` path injection
 
-Still need:
-- Real `readCredentials` / `writeCredentials` tests via path param
+All planned test coverage is implemented.
 
 Target: 80%+ coverage on `src/lib/`.
 

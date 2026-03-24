@@ -1,9 +1,28 @@
+import type { OAuthCredentials } from '@lib/types';
+
+import {
+  readCredentials,
+  writeCredentials,
+  deleteCredentials,
+  copyCredentials,
+} from '@lib/credentials';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-describe('credentials - file-based storage', () => {
+const mockCreds: OAuthCredentials = {
+  claudeAiOauth: {
+    accessToken: 'sk-ant-test-token',
+    refreshToken: 'sk-ant-test-refresh',
+    expiresAt: Date.now() + 3600000,
+    scopes: ['user:inference'],
+    subscriptionType: 'max',
+    rateLimitTier: 'default',
+  },
+};
+
+describe('credentials - file-based via path param', () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -14,60 +33,120 @@ describe('credentials - file-based storage', () => {
     await rm(tempDir, { recursive: true });
   });
 
-  const mockCreds = {
-    claudeAiOauth: {
-      accessToken: 'sk-ant-test-token',
-      refreshToken: 'sk-ant-test-refresh',
-      expiresAt: Date.now() + 3600000,
-      scopes: ['user:inference'],
-      subscriptionType: 'max',
-      rateLimitTier: 'default',
-    },
-  };
-
-  it('writes and reads credentials file roundtrip', async () => {
+  it('writeCredentials + readCredentials roundtrip', async () => {
     const credPath = join(tempDir, 'credentials.json');
 
-    await Bun.write(credPath, JSON.stringify(mockCreds, null, 2));
-    const { chmodSync } = await import('node:fs');
-    chmodSync(credPath, 0o600);
+    await writeCredentials(mockCreds, credPath);
+    const result = await readCredentials(credPath);
 
-    const readBack = await Bun.file(credPath).json();
-    expect(readBack.claudeAiOauth.accessToken).toBe('sk-ant-test-token');
-    expect(readBack.claudeAiOauth.refreshToken).toBe('sk-ant-test-refresh');
-    expect(readBack.claudeAiOauth.subscriptionType).toBe('max');
+    expect(result).toEqual(mockCreds);
   });
 
-  it('sets file permissions to 0o600', async () => {
+  it('writeCredentials sets 0o600 permissions', async () => {
     const credPath = join(tempDir, 'credentials.json');
 
-    await Bun.write(credPath, JSON.stringify(mockCreds, null, 2));
-    const { chmodSync } = await import('node:fs');
-    chmodSync(credPath, 0o600);
+    await writeCredentials(mockCreds, credPath);
 
     const st = await stat(credPath);
     expect(st.mode & 0o777).toBe(0o600);
   });
 
-  it('returns null for nonexistent file', async () => {
+  it('writeCredentials uses atomic temp-file-then-rename', async () => {
+    const credPath = join(tempDir, 'credentials.json');
+
+    await writeCredentials(mockCreds, credPath);
+
+    // No .tmp file should remain
+    const tmpExists = await Bun.file(`${credPath}.tmp`).exists();
+    expect(tmpExists).toBe(false);
+  });
+
+  it('writeCredentials creates parent directories', async () => {
+    const nested = join(tempDir, 'sub', 'dir', 'credentials.json');
+
+    await writeCredentials(mockCreds, nested);
+
+    const result = await readCredentials(nested);
+    expect(result).not.toBeNull();
+  });
+
+  it('writeCredentials overwrites existing credentials', async () => {
+    const credPath = join(tempDir, 'credentials.json');
+    await writeCredentials(mockCreds, credPath);
+
+    const updated: OAuthCredentials = {
+      claudeAiOauth: {
+        ...mockCreds.claudeAiOauth,
+        accessToken: 'sk-ant-updated-token',
+      },
+    };
+    await writeCredentials(updated, credPath);
+
+    const result = await readCredentials(credPath);
+    expect(result!.claudeAiOauth.accessToken).toBe('sk-ant-updated-token');
+  });
+
+  it('readCredentials returns null for nonexistent file', async () => {
     const credPath = join(tempDir, 'nonexistent.json');
-    const file = Bun.file(credPath);
-    const exists = await file.exists();
+    const result = await readCredentials(credPath);
+    expect(result).toBeNull();
+  });
+
+  it('readCredentials throws on corrupted file', async () => {
+    const credPath = join(tempDir, 'bad.json');
+    await Bun.write(credPath, '{{not json');
+
+    await expect(readCredentials(credPath)).rejects.toThrow(
+      'could not be read',
+    );
+  });
+
+  it('deleteCredentials removes the file', async () => {
+    const credPath = join(tempDir, 'credentials.json');
+    await writeCredentials(mockCreds, credPath);
+
+    await deleteCredentials(credPath);
+
+    const exists = await Bun.file(credPath).exists();
     expect(exists).toBe(false);
   });
 
-  it('handles both JSON formats', () => {
-    // Raw JSON (newer format)
-    const rawJson = '{"claudeAiOauth":{"accessToken":"test"}}';
-    expect(rawJson.startsWith('{')).toBe(true);
-    const parsed = JSON.parse(rawJson);
-    expect(parsed.claudeAiOauth.accessToken).toBe('test');
+  it('readCredentials returns null after deleteCredentials', async () => {
+    const credPath = join(tempDir, 'credentials.json');
+    await writeCredentials(mockCreds, credPath);
+    await deleteCredentials(credPath);
 
-    // Hex-encoded JSON (older format)
-    const hexJson = Buffer.from(rawJson, 'utf8').toString('hex');
-    expect(hexJson.startsWith('{')).toBe(false);
-    const decoded = Buffer.from(hexJson, 'hex').toString('utf8');
-    const parsedHex = JSON.parse(decoded);
-    expect(parsedHex.claudeAiOauth.accessToken).toBe('test');
+    const result = await readCredentials(credPath);
+    expect(result).toBeNull();
+  });
+
+  it('deleteCredentials is silent for nonexistent file', async () => {
+    const credPath = join(tempDir, 'nonexistent.json');
+    await deleteCredentials(credPath);
+    // Should not throw
+  });
+
+  it('copyCredentials copies from one path to another', async () => {
+    const src = join(tempDir, 'src.json');
+    const dst = join(tempDir, 'dst.json');
+
+    await writeCredentials(mockCreds, src);
+    await copyCredentials(src, dst);
+
+    const result = await readCredentials(dst);
+    expect(result).not.toBeNull();
+    expect(result!.claudeAiOauth.accessToken).toBe('sk-ant-test-token');
+
+    const st = await stat(dst);
+    expect(st.mode & 0o777).toBe(0o600);
+  });
+
+  it('copyCredentials throws when source does not exist', async () => {
+    const src = join(tempDir, 'missing.json');
+    const dst = join(tempDir, 'dst.json');
+
+    await expect(copyCredentials(src, dst)).rejects.toThrow(
+      'No credentials found',
+    );
   });
 });
