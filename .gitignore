@@ -1,6 +1,16 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 *.tgz
+
+# Bun
 *.bun-build
 .*.bun-build
 bun.lock
+
+# Claude Code
+.claude/plans/
+.claude/*.local.*
+CLAUDE.local.md
