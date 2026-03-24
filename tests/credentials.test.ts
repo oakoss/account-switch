@@ -1,11 +1,6 @@
 import type { OAuthCredentials } from '@lib/types';
 
-import {
-  readCredentials,
-  writeCredentials,
-  deleteCredentials,
-  copyCredentials,
-} from '@lib/credentials';
+import { createFileStore } from '@lib/credentials/file';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -22,7 +17,7 @@ const mockCreds: OAuthCredentials = {
   },
 };
 
-describe('credentials - file-based via path param', () => {
+describe('credentials - file store', () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -33,46 +28,48 @@ describe('credentials - file-based via path param', () => {
     await rm(tempDir, { recursive: true });
   });
 
-  it('writeCredentials + readCredentials roundtrip', async () => {
-    const credPath = join(tempDir, 'credentials.json');
+  it('write + read roundtrip', async () => {
+    const store = createFileStore(join(tempDir, 'credentials.json'));
 
-    await writeCredentials(mockCreds, credPath);
-    const result = await readCredentials(credPath);
+    await store.write(mockCreds);
+    const result = await store.read();
 
     expect(result).toEqual(mockCreds);
   });
 
-  it('writeCredentials sets 0o600 permissions', async () => {
+  it('write sets 0o600 permissions', async () => {
     const credPath = join(tempDir, 'credentials.json');
+    const store = createFileStore(credPath);
 
-    await writeCredentials(mockCreds, credPath);
+    await store.write(mockCreds);
 
     const st = await stat(credPath);
     expect(st.mode & 0o777).toBe(0o600);
   });
 
-  it('writeCredentials uses atomic temp-file-then-rename', async () => {
+  it('write uses atomic temp-file-then-rename', async () => {
     const credPath = join(tempDir, 'credentials.json');
+    const store = createFileStore(credPath);
 
-    await writeCredentials(mockCreds, credPath);
+    await store.write(mockCreds);
 
-    // No .tmp file should remain
     const tmpExists = await Bun.file(`${credPath}.tmp`).exists();
     expect(tmpExists).toBe(false);
   });
 
-  it('writeCredentials creates parent directories', async () => {
+  it('write creates parent directories', async () => {
     const nested = join(tempDir, 'sub', 'dir', 'credentials.json');
+    const store = createFileStore(nested);
 
-    await writeCredentials(mockCreds, nested);
+    await store.write(mockCreds);
 
-    const result = await readCredentials(nested);
+    const result = await store.read();
     expect(result).not.toBeNull();
   });
 
-  it('writeCredentials overwrites existing credentials', async () => {
-    const credPath = join(tempDir, 'credentials.json');
-    await writeCredentials(mockCreds, credPath);
+  it('write overwrites existing credentials', async () => {
+    const store = createFileStore(join(tempDir, 'credentials.json'));
+    await store.write(mockCreds);
 
     const updated: OAuthCredentials = {
       claudeAiOauth: {
@@ -80,73 +77,49 @@ describe('credentials - file-based via path param', () => {
         accessToken: 'sk-ant-updated-token',
       },
     };
-    await writeCredentials(updated, credPath);
+    await store.write(updated);
 
-    const result = await readCredentials(credPath);
+    const result = await store.read();
     expect(result!.claudeAiOauth.accessToken).toBe('sk-ant-updated-token');
   });
 
-  it('readCredentials returns null for nonexistent file', async () => {
-    const credPath = join(tempDir, 'nonexistent.json');
-    const result = await readCredentials(credPath);
+  it('read returns null for nonexistent file', async () => {
+    const store = createFileStore(join(tempDir, 'nonexistent.json'));
+    const result = await store.read();
     expect(result).toBeNull();
   });
 
-  it('readCredentials throws on corrupted file', async () => {
+  it('read throws on corrupted file', async () => {
     const credPath = join(tempDir, 'bad.json');
     await Bun.write(credPath, '{{not json');
+    const store = createFileStore(credPath);
 
-    await expect(readCredentials(credPath)).rejects.toThrow(
-      'could not be read',
-    );
+    await expect(store.read()).rejects.toThrow('could not be read');
   });
 
-  it('deleteCredentials removes the file', async () => {
+  it('delete removes the file', async () => {
     const credPath = join(tempDir, 'credentials.json');
-    await writeCredentials(mockCreds, credPath);
+    const store = createFileStore(credPath);
+    await store.write(mockCreds);
 
-    await deleteCredentials(credPath);
+    await store.delete();
 
     const exists = await Bun.file(credPath).exists();
     expect(exists).toBe(false);
   });
 
-  it('readCredentials returns null after deleteCredentials', async () => {
-    const credPath = join(tempDir, 'credentials.json');
-    await writeCredentials(mockCreds, credPath);
-    await deleteCredentials(credPath);
+  it('read returns null after delete', async () => {
+    const store = createFileStore(join(tempDir, 'credentials.json'));
+    await store.write(mockCreds);
+    await store.delete();
 
-    const result = await readCredentials(credPath);
+    const result = await store.read();
     expect(result).toBeNull();
   });
 
-  it('deleteCredentials is silent for nonexistent file', async () => {
-    const credPath = join(tempDir, 'nonexistent.json');
-    await deleteCredentials(credPath);
+  it('delete is silent for nonexistent file', async () => {
+    const store = createFileStore(join(tempDir, 'nonexistent.json'));
+    await store.delete();
     // Should not throw
-  });
-
-  it('copyCredentials copies from one path to another', async () => {
-    const src = join(tempDir, 'src.json');
-    const dst = join(tempDir, 'dst.json');
-
-    await writeCredentials(mockCreds, src);
-    await copyCredentials(src, dst);
-
-    const result = await readCredentials(dst);
-    expect(result).not.toBeNull();
-    expect(result!.claudeAiOauth.accessToken).toBe('sk-ant-test-token');
-
-    const st = await stat(dst);
-    expect(st.mode & 0o777).toBe(0o600);
-  });
-
-  it('copyCredentials throws when source does not exist', async () => {
-    const src = join(tempDir, 'missing.json');
-    const dst = join(tempDir, 'dst.json');
-
-    await expect(copyCredentials(src, dst)).rejects.toThrow(
-      'No credentials found',
-    );
   });
 });

@@ -3,9 +3,7 @@ import type { ProviderConfig } from '@lib/types';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-export const CLAUDE_DIR = join(homedir(), '.claude');
 export const CLAUDE_JSON = join(homedir(), '.claude.json');
-export const CREDENTIALS_FILE = join(CLAUDE_DIR, '.credentials.json');
 
 export const PROFILES_DIR = join(homedir(), '.acsw');
 export const STATE_FILE = join(PROFILES_DIR, 'state.json');
