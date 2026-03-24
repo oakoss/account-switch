@@ -513,6 +513,26 @@ Evidence the coupling is wrong: `env.ts` can't use `guardClaudeRunning()` (non-i
 
 **Fix:** `guardClaudeRunning()` should return a result (e.g., `'running' | 'unknown' | 'not-running'`) and let the caller decide how to present it. Or accept a callback/adapter for the confirm prompt. This removes the `process.exit()` call from a lib module and makes both the interactive and non-interactive paths use the same detection logic.
 
+### Extract process detection interface
+
+**Status:** Planned — needed for Windows support
+
+`src/lib/process.ts` `isClaudeRunning()` shells out to `pgrep`, which doesn't exist on Windows. When adding Windows support (alongside `@napi-rs/keyring`), process detection needs a platform-specific backend — same pattern as `CredentialStore`.
+
+```typescript
+type ProcessDetector = {
+  isRunning(name: string): Promise<boolean | null>;
+};
+```
+
+**Backends:**
+- `pgrep` — macOS/Linux (current approach)
+- `tasklist` or `Get-Process` — Windows
+
+Selected based on `ProviderConfig.platform`, injected into the env hook and `guardClaudeRunning`. Keeps the rest of the codebase unaware of platform-specific process detection.
+
+**Abstraction audit note (2026-03-24):** Reviewed the full codebase for abstraction gaps. The `CredentialStore`, `Provider`, and UI adapter (`OutputAdapter`/`PromptAdapter`) boundaries are already the right seams. Bun APIs, citty, and JSON format are deliberate choices that don't benefit from indirection. Process detection is the one gap that blocks cross-platform support.
+
 ### Credential storage abstraction
 
 **Status:** Done
