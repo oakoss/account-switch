@@ -1,6 +1,3 @@
-import { mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
-
 import type { OAuthCredentials } from './types';
 
 import {
@@ -8,6 +5,7 @@ import {
   CREDENTIALS_FILE,
   getKeychainAccount,
 } from './constants';
+import { writeJsonSecure } from './fs';
 
 const IS_MACOS = process.platform === 'darwin';
 
@@ -162,22 +160,7 @@ async function writeCredentialsFile(
   creds: OAuthCredentials,
   path: string,
 ): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const tmpPath = `${path}.tmp`;
-  try {
-    await Bun.write(tmpPath, JSON.stringify(creds, null, 2));
-    const { chmodSync, renameSync } = await import('node:fs');
-    chmodSync(tmpPath, 0o600);
-    renameSync(tmpPath, path);
-  } catch (error) {
-    try {
-      const { unlinkSync } = await import('node:fs');
-      unlinkSync(tmpPath);
-    } catch {
-      /* cleanup best-effort */
-    }
-    throw error;
-  }
+  await writeJsonSecure(path, creds);
 }
 
 export async function readCredentials(

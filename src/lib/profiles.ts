@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm, chmod } from 'node:fs/promises';
+import { readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type {
@@ -12,6 +12,12 @@ import type {
 } from './types';
 
 import { PROFILES_DIR, STATE_FILE, PROFILE_NAME_REGEX } from './constants';
+import {
+  ensureDir,
+  readJsonOptional,
+  readJsonWithFallback,
+  writeJson,
+} from './fs';
 
 const DEFAULT_CONFIG: ProfilesConfig = {
   profilesDir: PROFILES_DIR,
@@ -31,53 +37,18 @@ function profilePaths(config: ProfilesConfig, name: string) {
   };
 }
 
-async function ensureDir(path: string): Promise<void> {
-  await mkdir(path, { recursive: true });
+const DEFAULT_META: Omit<ProfileMeta, 'name'> = {
+  type: 'oauth',
+  provider: 'claude',
+  createdAt: '',
+  lastUsed: null,
+};
+
+function fallbackMeta(name: string): ProfileMeta {
+  return { name, ...DEFAULT_META };
 }
 
-async function readJsonOptional<T>(path: string): Promise<T | null> {
-  const file = Bun.file(path);
-  if (!(await file.exists())) return null;
-  try {
-    return (await file.json()) as T;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to parse ${path}: ${msg}`);
-  }
-}
-
-async function readJsonWithFallback<T>(path: string, fallback: T): Promise<T> {
-  const file = Bun.file(path);
-  if (!(await file.exists())) return fallback;
-  try {
-    return (await file.json()) as T;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to parse ${path}: ${msg}`);
-  }
-}
-
-async function writeJson(
-  path: string,
-  data: unknown,
-  mode?: number,
-): Promise<void> {
-  const tmpPath = `${path}.tmp`;
-  try {
-    await Bun.write(tmpPath, JSON.stringify(data, null, 2));
-    if (mode) await chmod(tmpPath, mode);
-    const { renameSync } = await import('node:fs');
-    renameSync(tmpPath, path);
-  } catch (error) {
-    try {
-      const { unlinkSync } = await import('node:fs');
-      unlinkSync(tmpPath);
-    } catch {
-      /* cleanup best-effort */
-    }
-    throw error;
-  }
-}
+// -- State --
 
 export async function readState(
   config: ProfilesConfig = DEFAULT_CONFIG,
@@ -93,6 +64,8 @@ async function writeState(
   await writeJson(config.stateFile, state);
 }
 
+// -- Validation --
+
 export function validateProfileName(name: string): string | null {
   if (!name) return 'Profile name is required';
   if (!PROFILE_NAME_REGEX.test(name)) {
@@ -106,38 +79,10 @@ export async function profileExists(
   config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<boolean> {
   const { meta } = profilePaths(config, name);
-  const file = Bun.file(meta);
-  return file.exists();
+  return Bun.file(meta).exists();
 }
 
-function buildProfileInfo(
-  name: string,
-  meta: ProfileMeta,
-  isActive: boolean,
-  snapshot?: ProviderSnapshot | null,
-  provider?: Provider,
-): ProfileInfo {
-  let email: string | null = null;
-  let subscriptionType: string | null = null;
-  let organizationName: string | null = null;
-
-  if (snapshot && provider) {
-    const info = provider.displayInfo(snapshot);
-    email = info.label;
-    organizationName = info.context;
-    subscriptionType = info.tier;
-  }
-
-  return {
-    name,
-    type: meta.type,
-    email,
-    subscriptionType,
-    organizationName,
-    isActive,
-    lastUsed: meta.lastUsed,
-  };
-}
+// -- Snapshot I/O --
 
 async function readProfileSnapshot(
   config: ProfilesConfig,
@@ -175,6 +120,95 @@ async function writeProfileSnapshot(
     }
   }
 }
+
+// -- Display info --
+
+function buildProfileInfo(
+  name: string,
+  meta: ProfileMeta,
+  isActive: boolean,
+  snapshot?: ProviderSnapshot | null,
+  provider?: Provider,
+): ProfileInfo {
+  let email: string | null = null;
+  let subscriptionType: string | null = null;
+  let organizationName: string | null = null;
+
+  if (snapshot && provider) {
+    const info = provider.displayInfo(snapshot);
+    email = info.label;
+    organizationName = info.context;
+    subscriptionType = info.tier;
+  }
+
+  return {
+    name,
+    type: meta.type,
+    email,
+    subscriptionType,
+    organizationName,
+    isActive,
+    lastUsed: meta.lastUsed,
+  };
+}
+
+// -- Switch helpers --
+
+async function snapshotOutgoingProfile(
+  state: ProfileState,
+  targetName: string,
+  resolve: ProviderResolver,
+  config: ProfilesConfig,
+): Promise<void> {
+  if (!state.active || state.active === targetName) return;
+  if (!(await profileExists(state.active, config))) return;
+
+  const { meta: outgoingMetaPath } = profilePaths(config, state.active);
+  const outgoingMeta = await readJsonWithFallback<ProfileMeta>(
+    outgoingMetaPath,
+    fallbackMeta(state.active),
+  );
+  const outgoingProvider = resolve(outgoingMeta.provider ?? 'claude');
+  const currentSnapshot = await outgoingProvider.snapshot();
+  if (currentSnapshot) {
+    await writeProfileSnapshot(config, state.active, currentSnapshot);
+  }
+}
+
+async function restoreWithRollback(
+  provider: Provider,
+  targetSnapshot: ProviderSnapshot,
+  profileName: string,
+  onSuccess?: () => Promise<void>,
+): Promise<void> {
+  const originalSnapshot = await provider.snapshot();
+  try {
+    await provider.restore(targetSnapshot);
+    if (onSuccess) await onSuccess();
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+
+    // Attempt rollback
+    try {
+      if (originalSnapshot) await provider.restore(originalSnapshot);
+    } catch (rollbackError) {
+      const rollbackMsg =
+        rollbackError instanceof Error
+          ? rollbackError.message
+          : String(rollbackError);
+      throw new Error(
+        `Failed to switch to "${profileName}": ${msg}. ` +
+          `WARNING: Could not restore previous credentials (${rollbackMsg}). Run 'acsw repair' to check state.`,
+      );
+    }
+
+    throw new Error(
+      `Failed to switch to "${profileName}": ${msg}. Previous credentials restored.`,
+    );
+  }
+}
+
+// -- Profile operations --
 
 export async function listProfiles(
   resolve: ProviderResolver,
@@ -261,38 +295,19 @@ export async function switchProfile(
 
   const state = await readState(config);
   const { meta: metaPath } = profilePaths(config, name);
-  const targetMeta = await readJsonWithFallback<ProfileMeta>(metaPath, {
-    name,
-    type: 'oauth',
-    provider: 'claude',
-    createdAt: '',
-    lastUsed: null,
-  });
+  const targetMeta = await readJsonWithFallback<ProfileMeta>(
+    metaPath,
+    fallbackMeta(name),
+  );
 
   const provider = resolve(targetMeta.provider ?? 'claude');
 
-  // Snapshot current live credentials back to the outgoing profile
-  if (
-    state.active &&
-    state.active !== name &&
-    (await profileExists(state.active, config))
-  ) {
-    const { meta: outgoingMetaPath } = profilePaths(config, state.active);
-    const outgoingMeta = await readJsonWithFallback<ProfileMeta>(
-      outgoingMetaPath,
-      {
-        name: state.active,
-        type: 'oauth',
-        provider: 'claude',
-        createdAt: '',
-        lastUsed: null,
-      },
-    );
-    const outgoingProvider = resolve(outgoingMeta.provider ?? 'claude');
-    const currentSnapshot = await outgoingProvider.snapshot();
-    if (currentSnapshot) {
-      await writeProfileSnapshot(config, state.active, currentSnapshot);
-    }
+  await snapshotOutgoingProfile(state, name, resolve, config);
+
+  async function commitState(): Promise<void> {
+    targetMeta.lastUsed = new Date().toISOString();
+    await writeJson(metaPath, targetMeta);
+    await writeState({ active: name }, config);
   }
 
   if (targetMeta.type === 'oauth') {
@@ -301,41 +316,9 @@ export async function switchProfile(
       throw new Error(`No credentials found for profile "${name}"`);
     }
 
-    // Capture live state for rollback
-    const originalSnapshot = await provider.snapshot();
-
-    try {
-      await provider.restore(targetSnapshot);
-      targetMeta.lastUsed = new Date().toISOString();
-      await writeJson(metaPath, targetMeta);
-      await writeState({ active: name }, config);
-    } catch (error) {
-      let rollbackOk = false;
-      let rollbackMsg = '';
-      try {
-        if (originalSnapshot) await provider.restore(originalSnapshot);
-        rollbackOk = true;
-      } catch (rollbackError) {
-        rollbackMsg =
-          rollbackError instanceof Error
-            ? rollbackError.message
-            : String(rollbackError);
-      }
-      const msg = error instanceof Error ? error.message : String(error);
-      if (rollbackOk) {
-        throw new Error(
-          `Failed to switch to "${name}": ${msg}. Previous credentials restored.`,
-        );
-      }
-      throw new Error(
-        `Failed to switch to "${name}": ${msg}. ` +
-          `WARNING: Could not restore previous credentials (${rollbackMsg}). Run 'acsw repair' to check state.`,
-      );
-    }
+    await restoreWithRollback(provider, targetSnapshot, name, commitState);
   } else {
-    targetMeta.lastUsed = new Date().toISOString();
-    await writeJson(metaPath, targetMeta);
-    await writeState({ active: name }, config);
+    await commitState();
   }
 
   let snapshot: ProviderSnapshot | null = null;
