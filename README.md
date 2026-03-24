@@ -1,6 +1,6 @@
 # account-switch (acsw)
 
-Switch between Claude Code accounts without logging out. Zero runtime dependencies.
+Switch between Claude Code accounts without logging out. Minimal runtime dependencies.
 
 Claude Code only supports one OAuth account at a time. This tool saves and restores credentials so you can switch instantly between personal, work, or team accounts.
 
@@ -53,6 +53,24 @@ acsw
 | `acsw remove <name>` | Delete a profile |
 | `acsw current` | Show active profile |
 | `acsw repair` | Validate and fix profiles |
+| `acsw env` | Shell hook setup for auto-switching |
+
+## Auto-switch on cd
+
+Automatically switch profiles when entering a project directory:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+eval "$(acsw env --use-on-cd)"
+```
+
+Then create a `.acswrc` in your project root:
+
+```json
+{ "profile": "work" }
+```
+
+Now when you `cd` into that directory, acsw switches to the `work` profile automatically.
 
 ## How it works
 

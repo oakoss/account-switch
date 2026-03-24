@@ -4,15 +4,22 @@ CLI tool for switching between Claude Code OAuth accounts. Package name: `accoun
 
 ## Architecture
 
-Credential storage is abstracted behind a `Provider` interface (`src/lib/providers/`). Each provider implements `snapshot()`, `restore()`, `clear()`, and `displayInfo()`. The profile layer (`profiles.ts`) orchestrates switching via opaque snapshots without knowing provider-specific storage details.
+Credential storage is abstracted in two layers:
+
+- **`Provider`** (`src/lib/providers/`) — high-level interface for snapshot/restore of full profile state (credentials + identity). The profile layer (`profiles.ts`) orchestrates switching via opaque snapshots without knowing provider-specific storage details.
+- **`CredentialStore`** (`src/lib/credentials/types.ts`) — low-level interface used *within* providers for platform-specific credential I/O. Backends: `keychain.ts` (macOS via `security` CLI) and `file.ts` (Linux via `~/.claude/.credentials.json`). Selected based on `ProviderConfig.platform`.
 
 The Claude provider (`providers/claude.ts`) swaps two things:
-1. **OAuth credentials** — macOS Keychain (via `security` CLI) or `~/.claude/.credentials.json` on Linux
+1. **OAuth credentials** — via the appropriate `CredentialStore` backend
 2. **`oauthAccount` field** in `~/.claude.json`
 
 It never touches `settings.json`, `settings.local.json`, memory, plugins, or project config.
 
 Profiles are stored in `~/.acsw/` with one directory per profile containing `credentials.json`, `account.json`, and `profile.json`. `ProviderConfig` (platform, homedir, env) is injected into providers for testability.
+
+Shared file utilities (atomic JSON write, safe JSON reads with fallback/optional semantics) live in `src/lib/fs.ts`.
+
+The `env` command (`src/commands/env.ts`) provides shell hook integration for auto-switching profiles on `cd`. It walks up directories looking for `.acswrc` files (`{ "profile": "work" }`), validates the config structure, and switches via `switchProfile`. Since the hook runs on every `cd`, all errors are caught and surfaced via `ui.error` with `process.exitCode = 1` — never raw stack traces.
 
 Profile validation and repair logic lives in `src/lib/repair.ts`, accepting a `RepairConfig` (profilesDir, stateFile) for testability. The `repair` command (`src/commands/repair.ts`) is a thin display wrapper.
 

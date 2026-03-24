@@ -6,22 +6,9 @@ Planned enhancements for `account-switch` (`acsw`). Organized by priority.
 
 ### Adopt citty + @clack/prompts
 
-**Status:** Planned (high priority)
+**Status:** Done
 
-Replace the manual arg parsing (`switch` in `index.ts`) and raw ANSI UI (`ui.ts`) with proper CLI libraries:
-
-- **citty** (unjs) — arg parsing, subcommands, typed args, auto-generated help text
-- **@clack/prompts** — interactive prompts (select, confirm, spinner, text input)
-
-Both are zero-dep, ~4-5KB each, Bun-compatible, and from trusted maintainers.
-
-**What changes:**
-- `src/index.ts` — replace manual `switch` with citty command definitions
-- `src/lib/ui.ts` — replace raw ANSI codes and stdin reader with clack prompts
-- Help text auto-generated from command definitions instead of hand-written
-- Interactive picker becomes a proper `select()` prompt
-- Confirm dialogs become `confirm()` with proper keyboard handling
-- **Prep:** Consolidate shared command patterns first (Claude-running guard in `add`/`use`, name validation, error exit) to reduce migration surface
+Migrated from manual arg parsing and raw ANSI UI to citty (subcommands, typed args, auto help) and `@clack/prompts` (interactive select, confirm). Output and prompts are abstracted behind `OutputAdapter`/`PromptAdapter` in `src/lib/ui/types.ts`.
 
 ## Multi-provider support
 
@@ -84,37 +71,38 @@ acsw group use work   # switches all three
 
 ### Shell hook integration
 
-**Status:** Planned (high priority)
+**Status:** Done (single-provider)
 
-Automatically switch profiles when entering a project directory, like fnm does for Node.js versions.
+The `acsw env` command provides shell integration for auto-switching profiles on `cd`, like fnm does for Node.js versions.
 
 **Project config** (`.acswrc` in project root):
 
 ```json
 {
-  "claude": "work",
-  "aws": "work-prod"
+  "profile": "work"
 }
 ```
 
 **Shell setup:**
 
 ```bash
-# Add to ~/.zshrc
+# Add to ~/.zshrc / ~/.bashrc
 eval "$(acsw env --use-on-cd)"
+
+# Fish: ~/.config/fish/conf.d/acsw.fish
+acsw env --use-on-cd | source
 ```
 
 **Behavior:**
-- On `cd`, the hook checks for `.acswrc` walking up parent directories
-- If found, switches any profiles that differ from current
-- Fast no-op when already on the correct profile
-- Prints a one-line notification on switch
+- On `cd`, the hook runs `acsw env --apply`
+- Walks up directories looking for `.acswrc` (nearest-ancestor wins, like `.nvmrc`)
+- Switches profile if it differs from current, no-op if already active
+- Validates `.acswrc` structure and warns on malformed config
+- Checks for running Claude sessions before switching
+- Sets `process.exitCode = 1` on failure so callers can detect errors
 
-**Implementation:**
-- `acsw env` command outputs a shell function that wraps `cd`
-- `acsw use --if-changed <profile>` flag for silent no-op when already active
-- Support bash, zsh, and fish shells
-- `.acswrc` lookup walks up directories (like `.gitignore`)
+**Remaining work:**
+- Multi-provider support in `.acswrc` (e.g., `{ "claude": "work", "aws": "work-prod" }`) — blocked on adding more providers
 
 ## Profile management
 
@@ -259,42 +247,30 @@ brew install account-switch
 
 ### Decompose `profiles.ts`
 
-**Status:** Planned
+**Status:** Partially done
 
-`profiles.ts` (372 lines) mixes profile lifecycle, snapshot I/O, state transitions, and rollback. `switchProfile()` alone is 97 lines with 5 nesting levels.
+Shared file utilities (atomic JSON write, safe JSON reads) extracted to `src/lib/fs.ts`. `switchProfile()` flattened — reduced nesting and improved readability.
 
-**Extract:**
-- Atomic JSON write helper (temp-file-then-rename pattern used 4+ times across `profiles.ts` and `credentials.ts`)
-- Snapshot read/write into `src/lib/snapshot.ts`
-- State backup logic for outgoing profiles
-
-**Why now:** Every new provider adds more snapshot types. Grouped switching will call `switchProfile` in a loop — rollback logic needs to be isolated and testable.
-
-**Files:** `src/lib/profiles.ts`, `src/lib/credentials.ts`
+**Remaining:**
+- Snapshot read/write could move to `src/lib/snapshot.ts`
+- State backup logic for outgoing profiles could be isolated for grouped switching
 
 ### Credential storage abstraction
 
-**Status:** Planned
+**Status:** Done
 
-`credentials.ts` (236 lines) tangles macOS Keychain CLI interaction (140 lines), file-based credential I/O, and hex-vs-JSON format detection. Keychain logic can't be tested without the real `security` command.
+Extracted `CredentialStore` interface with platform-specific backends in `src/lib/credentials/`:
+- `types.ts` — `CredentialStore` interface
+- `keychain.ts` — macOS Keychain backend (via `security` CLI)
+- `file.ts` — file-based backend (`~/.claude/.credentials.json`)
 
-**Extract:** Platform-specific credential backends behind a `CredentialStore` interface. The Claude provider uses the appropriate backend based on `ProviderConfig.platform`.
-
-**Why now:** Directly unblocks Windows Credential Manager and Linux Secret Service. Also needed for API key profile support (different storage backend, same interface).
-
-**Files:** `src/lib/credentials.ts`, `src/lib/providers/claude.ts`
+The Claude provider selects the backend based on `ProviderConfig.platform`. This unblocks Windows Credential Manager and Linux Secret Service as future backends.
 
 ### Consolidate test utilities
 
-**Status:** Planned
+**Status:** Done
 
-`createMockProvider()` and `createFailingProvider()` live in `profiles.test.ts` but are needed by any test touching providers. Each test file independently sets up temp directories.
-
-**Extract:** Move mock provider factories and shared setup to `tests/helpers/`.
-
-**Why now:** Every new provider needs mock factories. 80%+ coverage target is harder when setup is duplicated.
-
-**Files:** `tests/profiles.test.ts` → `tests/helpers/mock-providers.ts`
+Mock provider factories (`createMockProvider`, `createFailingProvider`, `mockResolver`) extracted to `tests/helpers/mock-providers.ts`. Shared across all provider-related test files.
 
 ## Quality
 
@@ -309,7 +285,10 @@ Integration tests use `mock.module` to redirect `constants.ts` paths to a temp d
 - `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
 - Repair library — 14 tests via `RepairConfig` path injection
 
-All planned test coverage is implemented.
+All planned `src/lib/` test coverage is implemented.
+
+**Remaining:**
+- `env` command — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `applyAcswrc` (already active no-op, switch success, switch failure exit code, isClaudeRunning gating), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell
 
 Target: 80%+ coverage on `src/lib/`.
 

@@ -15,6 +15,7 @@ const KNOWN_COMMANDS = new Set([
   'rm',
   'current',
   'repair',
+  'env',
   'help',
   '--help',
   '-h',
@@ -40,6 +41,7 @@ const main = defineCommand({
     rm: () => import('@commands/remove').then((m) => m.default),
     current: () => import('@commands/current').then((m) => m.default),
     repair: () => import('@commands/repair').then((m) => m.default),
+    env: () => import('@commands/env').then((m) => m.default),
   },
   async run({ rawArgs }) {
     // If a subcommand was given, citty already handled it — skip the picker
