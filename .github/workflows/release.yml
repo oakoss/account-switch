@@ -34,7 +34,12 @@ jobs:
           git config user.name "oakoss[bot]"
           git config user.email "3174795+oakoss[bot]@users.noreply.github.com"
 
+      # release-it handles: version bump, changelog, commit, tag, GitHub release
       - name: Release
-        run: pnpm release --ci
+        run: pnpm release --ci --no-npm
         env:
           GITHUB_TOKEN: ${{ steps.bot-token.outputs.token }}
+
+      # npm publish separately for OIDC (release-it can't do OIDC)
+      - name: Publish to npm
+        run: npm publish --access public

@@ -4,7 +4,7 @@
     "commitMessage": "chore: release v${version}",
     "tagName": "v${version}"
   },
-  "npm": { "publish": true, "skipChecks": true },
+  "npm": { "publish": false },
   "github": { "release": true },
   "hooks": { "before:init": "bun run build:js" },
   "plugins": {
