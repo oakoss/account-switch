@@ -7,8 +7,28 @@ on:
     types: [completed]
 
 jobs:
-  release:
+  check:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.check.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Check if release commit
+        id: check
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          if [[ "$COMMIT_MSG" == chore:\ release\ v* ]]; then
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: check
+    if: ${{ needs.check.outputs.is_release == 'false' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -29,17 +49,15 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      - name: Update npm for OIDC support
+        run: npm install -g npm@latest
+
       - name: Configure git
         run: |
           git config user.name "oakoss[bot]"
           git config user.email "3174795+oakoss[bot]@users.noreply.github.com"
 
-      # release-it handles: version bump, changelog, commit, tag, GitHub release
       - name: Release
-        run: pnpm release --ci --no-npm
+        run: pnpm release --ci
         env:
           GITHUB_TOKEN: ${{ steps.bot-token.outputs.token }}
-
-      # npm publish separately for OIDC (release-it can't do OIDC)
-      - name: Publish to npm
-        run: npm publish --access public
