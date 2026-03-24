@@ -21,6 +21,7 @@ Both are zero-dep, ~4-5KB each, Bun-compatible, and from trusted maintainers.
 - Help text auto-generated from command definitions instead of hand-written
 - Interactive picker becomes a proper `select()` prompt
 - Confirm dialogs become `confirm()` with proper keyboard handling
+- **Prep:** Consolidate shared command patterns first (Claude-running guard in `add`/`use`, name validation, error exit) to reduce migration surface
 
 ## Multi-provider support
 
@@ -45,6 +46,7 @@ type Provider = {
 **Remaining work:**
 - Generics on `Provider` blocked by TypeScript variance on `restore()` parameter — using `ClaudeSnapshot` type alias with single boundary cast instead
 - Add concrete providers (GitHub CLI, AWS CLI, etc.)
+- Auto-registration or declarative provider map in registry to avoid manual edits when adding providers
 
 **Target providers:**
 
@@ -252,6 +254,47 @@ Attach to GitHub releases automatically.
 ```bash
 brew install account-switch
 ```
+
+## Architecture
+
+### Decompose `profiles.ts`
+
+**Status:** Planned
+
+`profiles.ts` (372 lines) mixes profile lifecycle, snapshot I/O, state transitions, and rollback. `switchProfile()` alone is 97 lines with 5 nesting levels.
+
+**Extract:**
+- Atomic JSON write helper (temp-file-then-rename pattern used 4+ times across `profiles.ts` and `credentials.ts`)
+- Snapshot read/write into `src/lib/snapshot.ts`
+- State backup logic for outgoing profiles
+
+**Why now:** Every new provider adds more snapshot types. Grouped switching will call `switchProfile` in a loop — rollback logic needs to be isolated and testable.
+
+**Files:** `src/lib/profiles.ts`, `src/lib/credentials.ts`
+
+### Credential storage abstraction
+
+**Status:** Planned
+
+`credentials.ts` (236 lines) tangles macOS Keychain CLI interaction (140 lines), file-based credential I/O, and hex-vs-JSON format detection. Keychain logic can't be tested without the real `security` command.
+
+**Extract:** Platform-specific credential backends behind a `CredentialStore` interface. The Claude provider uses the appropriate backend based on `ProviderConfig.platform`.
+
+**Why now:** Directly unblocks Windows Credential Manager and Linux Secret Service. Also needed for API key profile support (different storage backend, same interface).
+
+**Files:** `src/lib/credentials.ts`, `src/lib/providers/claude.ts`
+
+### Consolidate test utilities
+
+**Status:** Planned
+
+`createMockProvider()` and `createFailingProvider()` live in `profiles.test.ts` but are needed by any test touching providers. Each test file independently sets up temp directories.
+
+**Extract:** Move mock provider factories and shared setup to `tests/helpers/`.
+
+**Why now:** Every new provider needs mock factories. 80%+ coverage target is harder when setup is duplicated.
+
+**Files:** `tests/profiles.test.ts` → `tests/helpers/mock-providers.ts`
 
 ## Quality
 

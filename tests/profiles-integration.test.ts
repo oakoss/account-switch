@@ -1,9 +1,4 @@
-import type {
-  ProfilesConfig,
-  Provider,
-  ProviderResolver,
-  ProviderSnapshot,
-} from '@lib/types';
+import type { ProfilesConfig, Provider } from '@lib/types';
 
 import {
   addOAuthProfile,
@@ -17,6 +12,8 @@ import { mkdtemp, rm, stat, readdir, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { createMockProvider, mockResolver } from './helpers/mock-providers';
+
 let tempDir: string;
 let config: ProfilesConfig;
 
@@ -28,47 +25,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(tempDir, { recursive: true });
 });
-
-function createMockProvider(
-  initial: ProviderSnapshot | null = null,
-): Provider & {
-  current: ProviderSnapshot | null;
-  restoreCalls: ProviderSnapshot[];
-  clearCalled: boolean;
-} {
-  const m = {
-    name: 'mock',
-    current: initial,
-    restoreCalls: [] as ProviderSnapshot[],
-    clearCalled: false,
-
-    async snapshot() {
-      return m.current;
-    },
-    async restore(snap: ProviderSnapshot) {
-      m.restoreCalls.push(snap);
-      m.current = snap;
-    },
-    async clear() {
-      m.clearCalled = true;
-      m.current = null;
-    },
-    displayInfo(snap: ProviderSnapshot) {
-      const identity = snap.identity as { email?: string; org?: string } | null;
-      const creds = snap.credentials as { tier?: string } | null;
-      return {
-        label: identity?.email ?? null,
-        context: identity?.org ?? null,
-        tier: creds?.tier ?? null,
-      };
-    },
-  };
-  return m;
-}
-
-function mockResolver(provider: Provider): ProviderResolver {
-  return () => provider;
-}
 
 async function setupProfile(
   name: string,
