@@ -1,3 +1,5 @@
+import type { ProviderConfig } from '@lib/types';
+
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,6 +13,14 @@ export const STATE_FILE = join(PROFILES_DIR, 'state.json');
 export const KEYCHAIN_SERVICE = 'Claude Code-credentials';
 
 export const PROFILE_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
+
+export function createProviderConfig(): ProviderConfig {
+  return {
+    platform: process.platform,
+    homedir: homedir(),
+    env: process.env as Record<string, string | undefined>,
+  };
+}
 
 export function getKeychainAccount(): string {
   const user = process.env.USER;

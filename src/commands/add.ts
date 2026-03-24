@@ -1,65 +1,65 @@
-import type { Provider } from '@lib/types';
-
-import { isClaudeRunning } from '@lib/process';
+import { createProviderConfig } from '@lib/constants';
+import { guardClaudeRunning } from '@lib/process';
 import {
   validateProfileName,
   profileExists,
   addOAuthProfile,
 } from '@lib/profiles';
+import { createProvider, createDefaultProvider } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
+import { defineCommand } from 'citty';
 
-export async function add(
-  name: string | undefined,
-  provider: Provider,
-): Promise<void> {
-  if (!name) {
-    ui.error('Usage: acsw add <name>');
-    process.exit(1);
-  }
-
-  const nameError = validateProfileName(name);
-  if (nameError) {
-    ui.error(nameError);
-    process.exit(1);
-  }
-
-  if (await profileExists(name)) {
-    ui.error(`Profile "${name}" already exists.`);
-    ui.hint(`Use 'acsw remove ${name}' to remove it first.`);
-    process.exit(1);
-  }
-
-  ui.blank();
-
-  const running = await isClaudeRunning();
-  if (running === null) {
-    ui.warn('Could not determine if Claude Code is running.');
-    const ok = await ui.confirm('Continue anyway?');
-    if (!ok) process.exit(0);
-  } else if (running) {
-    ui.warn('Claude Code appears to be running.');
-    const ok = await ui.confirm('Continue anyway?');
-    if (!ok) process.exit(0);
-  }
-
-  const snapshot = await provider.snapshot();
-  if (!snapshot) {
-    ui.error('No OAuth credentials found.');
-    ui.hint("Log in with 'claude' first, then run this command again.");
-    process.exit(1);
-  }
-
-  const info = provider.displayInfo(snapshot);
-  if (info.label) {
-    ui.info(`Found active session: ${info.label}`);
-    if (info.context) {
-      ui.hint(`  ${info.context}`);
+export default defineCommand({
+  meta: { name: 'add', description: 'Save current session as a profile' },
+  args: {
+    name: { type: 'positional', description: 'Profile name', required: true },
+    provider: {
+      type: 'string',
+      description: 'Provider to use',
+      default: 'claude',
+    },
+  },
+  async run({ args }) {
+    const nameError = validateProfileName(args.name);
+    if (nameError) {
+      ui.error(nameError);
+      process.exit(1);
     }
-  }
 
-  await addOAuthProfile(name, provider);
+    if (await profileExists(args.name)) {
+      ui.error(`Profile "${args.name}" already exists.`);
+      ui.hint(`Use 'acsw remove ${args.name}' to remove it first.`);
+      process.exit(1);
+    }
 
-  ui.blank();
-  ui.success(`Profile ${ui.bold(name)} saved`);
-  ui.blank();
-}
+    ui.blank();
+    await guardClaudeRunning();
+
+    const config = createProviderConfig();
+    const provider =
+      args.provider !== 'claude'
+        ? createProvider(args.provider, config)
+        : createDefaultProvider(config);
+
+    const snapshot = await provider.snapshot();
+    if (!snapshot) {
+      ui.error('No OAuth credentials found.');
+      ui.hint("Log in with 'claude' first, then run this command again.");
+      process.exit(1);
+    }
+
+    const info = provider.displayInfo(snapshot);
+    if (info.label) {
+      ui.info(`Found active session: ${info.label}`);
+      if (info.context) {
+        ui.hint(`  ${info.context}`);
+      }
+    }
+
+    await addOAuthProfile(args.name, provider);
+
+    ui.blank();
+    ui.success(`Profile ${ui.bold(args.name)} saved`);
+    ui.blank();
+  },
+});

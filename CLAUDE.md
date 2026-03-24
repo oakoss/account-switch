@@ -46,11 +46,12 @@ pnpm build            # compile standalone binary to dist/acsw
 - **Error handling:** Never silently swallow errors. Return `null` only for "file doesn't exist". Throw on corruption, permission errors, or unexpected failures. Use ENOENT-specific catches, not bare `catch {}`.
 - **Temp file cleanup:** Every write that uses a `.tmp` file must clean it up in the catch block
 - **Spawn pattern:** Always read stdout/stderr before `await proc.exited` to avoid pipe deadlock
-- **No runtime dependencies** — all output uses raw ANSI codes, no chalk/inquirer/commander
+- **CLI framework:** citty for arg parsing and subcommands; `@clack/prompts` for interactive UI. Output and prompts are abstracted behind `OutputAdapter`/`PromptAdapter` types in `src/lib/ui/types.ts` — the `@lib/ui` facade wires the clack implementation but can be swapped by changing one import
+- **Minimal runtime dependencies** — only citty and `@clack/prompts`; no chalk/inquirer/commander
 
 ## Testing
 
-Tests use `bun:test`. Mock provider factories (`createMockProvider`, `createFailingProvider`) are available in `tests/profiles.test.ts` for testing profile operations without filesystem or Keychain access. Integration tests for exported functions are tracked in docs/improvements.md.
+Tests use `bun:test`. Mock provider factories (`createMockProvider`, `createFailingProvider`, `mockResolver`) are shared in `tests/helpers/mock-providers.ts` for testing profile operations without filesystem or Keychain access. Integration tests for exported functions are tracked in docs/improvements.md.
 
 ## CI/CD
 

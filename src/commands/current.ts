@@ -1,38 +1,43 @@
-import type { ProviderResolver } from '@lib/types';
-
+import { createProviderConfig } from '@lib/constants';
 import { readState, listProfiles } from '@lib/profiles';
+import { createResolver } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
+import { defineCommand } from 'citty';
 
-export async function current(resolve: ProviderResolver): Promise<void> {
-  const state = await readState();
+export default defineCommand({
+  meta: { name: 'current', description: 'Show active profile' },
+  async run() {
+    const state = await readState();
 
-  ui.blank();
-
-  if (!state.active) {
-    ui.info('No active profile');
-    ui.hint("Run 'acsw add <name>' to create one.");
     ui.blank();
-    return;
-  }
 
-  const profiles = await listProfiles(resolve);
-  const active = profiles.find((p) => p.isActive);
+    if (!state.active) {
+      ui.info('No active profile');
+      ui.hint("Run 'acsw add <name>' to create one.");
+      ui.blank();
+      return;
+    }
 
-  if (!active) {
-    ui.warn(`Active profile "${state.active}" not found on disk.`);
+    const resolve = createResolver(createProviderConfig());
+    const profiles = await listProfiles(resolve);
+    const active = profiles.find((p) => p.isActive);
+
+    if (!active) {
+      ui.warn(`Active profile "${state.active}" not found on disk.`);
+      ui.blank();
+      return;
+    }
+
+    ui.log(
+      `${ui.green(ui.bold(active.name))}  ${ui.formatSubscription(active.subscriptionType)}`,
+    );
+    if (active.email) {
+      ui.hint(`  ${active.email}`);
+    }
+    if (active.organizationName) {
+      ui.hint(`  ${active.organizationName}`);
+    }
+
     ui.blank();
-    return;
-  }
-
-  console.log(
-    `  ${ui.green(ui.bold(active.name))}  ${ui.formatSubscription(active.subscriptionType)}`,
-  );
-  if (active.email) {
-    ui.hint(`  ${active.email}`);
-  }
-  if (active.organizationName) {
-    ui.hint(`  ${active.organizationName}`);
-  }
-
-  ui.blank();
-}
+  },
+});

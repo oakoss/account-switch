@@ -1,41 +1,42 @@
-import type { ProviderResolver } from '@lib/types';
-
+import { createProviderConfig } from '@lib/constants';
 import { profileExists, removeProfile, readState } from '@lib/profiles';
+import { createResolver } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
+import { defineCommand } from 'citty';
 
-export async function remove(
-  name: string | undefined,
-  resolve: ProviderResolver,
-): Promise<void> {
-  if (!name) {
-    ui.error('Usage: acsw remove <name>');
-    process.exit(1);
-  }
+export default defineCommand({
+  meta: { name: 'remove', description: 'Remove a profile' },
+  args: {
+    name: { type: 'positional', description: 'Profile name', required: true },
+  },
+  async run({ args }) {
+    if (!(await profileExists(args.name))) {
+      ui.error(`Profile "${args.name}" does not exist.`);
+      process.exit(1);
+    }
 
-  if (!(await profileExists(name))) {
-    ui.error(`Profile "${name}" does not exist.`);
-    process.exit(1);
-  }
+    const state = await readState();
+    const isActive = state.active === args.name;
 
-  const state = await readState();
-  const isActive = state.active === name;
-
-  ui.blank();
-  if (isActive) {
-    ui.warn('This will log you out of Claude Code.');
-  }
-  const label = isActive ? ` ${ui.yellow('(currently active)')}` : '';
-  const ok = await ui.confirm(`Delete profile "${name}"?${label}`);
-
-  if (!ok) {
-    ui.hint('Cancelled.');
     ui.blank();
-    return;
-  }
+    if (isActive) {
+      ui.warn('This will log you out of Claude Code.');
+    }
+    const label = isActive ? ` ${ui.yellow('(currently active)')}` : '';
+    const ok = await ui.confirm(`Delete profile "${args.name}"?${label}`);
 
-  await removeProfile(name, resolve);
+    if (!ok) {
+      ui.hint('Cancelled.');
+      ui.blank();
+      return;
+    }
 
-  ui.blank();
-  ui.success(`Profile ${ui.bold(name)} removed`);
-  ui.blank();
-}
+    const resolve = createResolver(createProviderConfig());
+
+    await removeProfile(args.name, resolve);
+
+    ui.blank();
+    ui.success(`Profile ${ui.bold(args.name)} removed`);
+    ui.blank();
+  },
+});

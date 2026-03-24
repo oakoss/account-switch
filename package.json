@@ -44,6 +44,10 @@
     "test": "bun test",
     "typecheck": "bun x tsc --noEmit"
   },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "citty": "^0.2.1"
+  },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@changesets/changelog-github": "^0.6.0",

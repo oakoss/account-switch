@@ -1,195 +1,138 @@
 #!/usr/bin/env node
 
-import type { ProviderConfig } from '@lib/types';
-
-import { add } from '@commands/add';
-import { current } from '@commands/current';
-import { list } from '@commands/list';
-import { remove } from '@commands/remove';
-import { repair } from '@commands/repair';
-import { use } from '@commands/use';
+import { createProviderConfig } from '@lib/constants';
 import { listProfiles } from '@lib/profiles';
-import {
-  createProvider,
-  createDefaultProvider,
-  createResolver,
-} from '@lib/providers/registry';
+import { createResolver } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
-import { homedir } from 'node:os';
+import { defineCommand, runMain } from 'citty';
 
-const config: ProviderConfig = {
-  platform: process.platform,
-  homedir: homedir(),
-  env: process.env as Record<string, string | undefined>,
-};
+const KNOWN_COMMANDS = new Set([
+  'add',
+  'use',
+  'list',
+  'ls',
+  'remove',
+  'rm',
+  'current',
+  'repair',
+  'help',
+  '--help',
+  '-h',
+  '--version',
+  '-v',
+]);
 
-const resolve = createResolver(config);
+// Bun resolves JSON imports at build time, so this works in both dev and compiled binary
+const { version: PKG_VERSION } = await import('../package.json');
 
-const HELP = `
-  ${ui.bold('acsw')} — Switch between CLI tool accounts
+const main = defineCommand({
+  meta: {
+    name: 'acsw',
+    version: PKG_VERSION,
+    description: 'Switch between CLI tool accounts',
+  },
+  subCommands: {
+    add: () => import('@commands/add').then((m) => m.default),
+    use: () => import('@commands/use').then((m) => m.default),
+    list: () => import('@commands/list').then((m) => m.default),
+    ls: () => import('@commands/list').then((m) => m.default),
+    remove: () => import('@commands/remove').then((m) => m.default),
+    rm: () => import('@commands/remove').then((m) => m.default),
+    current: () => import('@commands/current').then((m) => m.default),
+    repair: () => import('@commands/repair').then((m) => m.default),
+  },
+  async run({ rawArgs }) {
+    // If a subcommand was given, citty already handled it — skip the picker
+    if (rawArgs.length > 0) return;
 
-  ${ui.dim('Usage:')}
-    acsw                  Interactive profile picker
-    acsw add <name>       Save current session as a profile
-    acsw use <name>       Switch to a profile
-    acsw list             List all profiles
-    acsw remove <name>    Remove a profile
-    acsw current          Show active profile
-    acsw repair           Validate and fix profiles
-    acsw help             Show this help
+    const config = createProviderConfig();
+    const resolve = createResolver(config);
+    const profiles = await listProfiles(resolve);
 
-  ${ui.dim('Add options:')}
-    --provider <name>     Provider to use (default: claude)
+    if (profiles.length === 0) {
+      ui.blank();
+      ui.info('No profiles yet');
+      ui.hint("Run 'acsw add <name>' to save your current session.");
+      ui.blank();
+      return;
+    }
 
-  ${ui.dim('Shortcuts:')}
-    acsw <name>           Same as 'use <name>'
-    acsw ls               Same as 'list'
-    acsw rm <name>        Same as 'remove <name>'
-    acsw --version        Show version
-`;
+    ui.blank();
+    const selected = await ui.select({
+      message: 'Switch profile',
+      options: profiles.map((p) => ({
+        value: p.name,
+        label: p.isActive
+          ? `${ui.green(ui.bold(p.name))} ${ui.dim('(active)')}`
+          : p.name,
+        hint: [ui.formatSubscription(p.subscriptionType), p.email]
+          .filter(Boolean)
+          .join('  '),
+      })),
+    });
 
-function parseProviderFlag(args: string[]): {
-  providerName: string | null;
-  rest: string[];
-} {
-  const idx = args.indexOf('--provider');
-  if (idx === -1) return { providerName: null, rest: args };
-  const providerName = args[idx + 1];
-  if (!providerName || providerName.startsWith('-')) {
-    ui.error('--provider requires a value');
-    process.exit(1);
-  }
-  const rest = [...args.slice(0, idx), ...args.slice(idx + 2)];
-  return { providerName, rest };
-}
+    if (!selected) return;
 
-async function interactivePicker(): Promise<void> {
+    const profile = profiles.find((p) => p.name === selected);
+    if (profile?.isActive) {
+      ui.success(`Already on ${ui.bold(selected)}`);
+      ui.blank();
+      return;
+    }
+
+    const { guardClaudeRunning } = await import('@lib/process');
+    await guardClaudeRunning();
+
+    const { switchProfile } = await import('@lib/profiles');
+    const result = await switchProfile(selected, resolve);
+    ui.success(
+      `Switched to ${ui.bold(selected)}  ${ui.formatSubscription(result.subscriptionType)}`,
+    );
+    if (result.email) {
+      ui.hint(`  ${result.email}`);
+    }
+    ui.blank();
+  },
+});
+
+// Handle `acsw <profile-name>` shortcut before citty processes args
+const firstArg = process.argv[2];
+if (firstArg && !firstArg.startsWith('-') && !KNOWN_COMMANDS.has(firstArg)) {
+  const config = createProviderConfig();
+  const resolve = createResolver(config);
   const profiles = await listProfiles(resolve);
+  const match = profiles.find((p) => p.name === firstArg);
 
-  if (profiles.length === 0) {
-    ui.blank();
-    console.log(`  ${ui.bold('acsw')}`);
-    ui.blank();
-    ui.hint(
-      "No profiles yet. Run 'acsw add <name>' to save your current session.",
-    );
-    ui.blank();
-    return;
-  }
+  if (match) {
+    try {
+      const { switchProfile, readState } = await import('@lib/profiles');
+      const state = await readState();
 
-  ui.blank();
-  console.log(`  ${ui.bold('Switch profile')}`);
-  ui.blank();
+      if (state.active === firstArg) {
+        ui.blank();
+        ui.success(`Already on ${ui.bold(firstArg)}`);
+        ui.blank();
+      } else {
+        const { guardClaudeRunning } = await import('@lib/process');
+        ui.blank();
+        await guardClaudeRunning();
 
-  for (let i = 0; i < profiles.length; i++) {
-    const p = profiles[i];
-    const num = ui.dim(`${i + 1}.`);
-    const name = p.isActive ? ui.green(ui.bold(p.name)) : p.name;
-    const sub = ui.formatSubscription(p.subscriptionType);
-    const active = p.isActive ? ui.dim(' (active)') : '';
-    const email = p.email ? `  ${ui.dim(p.email)}` : '';
-
-    console.log(`  ${num} ${name}${active}  ${sub}${email}`);
-  }
-
-  const choice = await ui.pickNumber(profiles.length);
-  if (choice === null) {
-    ui.blank();
-    ui.hint(
-      `No valid selection. Use a number between 1 and ${profiles.length}.`,
-    );
-    ui.blank();
-    return;
-  }
-
-  const selected = profiles[choice - 1];
-  if (selected.isActive) {
-    ui.blank();
-    ui.success(`Already on ${ui.bold(selected.name)}`);
-    ui.blank();
-    return;
-  }
-
-  await use(selected.name, resolve);
-}
-
-async function main(): Promise<void> {
-  const [command, ...rawArgs] = process.argv.slice(2);
-  const { providerName, rest: args } = parseProviderFlag(rawArgs);
-
-  try {
-    switch (command) {
-      case undefined: {
-        return interactivePicker();
-      }
-
-      case 'add': {
-        const provider = providerName
-          ? createProvider(providerName, config)
-          : createDefaultProvider(config);
-        return add(args[0], provider);
-      }
-
-      case 'use': {
-        return use(args[0], resolve);
-      }
-
-      case 'list':
-      case 'ls': {
-        return list(resolve);
-      }
-
-      case 'remove':
-      case 'rm': {
-        return remove(args[0], resolve);
-      }
-
-      case 'current': {
-        return current(resolve);
-      }
-
-      case 'repair': {
-        return repair();
-      }
-
-      case 'help':
-      case '--help':
-      case '-h': {
-        console.log(HELP);
-        return;
-      }
-
-      case '--version':
-      case '-v': {
-        try {
-          const pkgPath = new URL('../package.json', import.meta.url);
-          const pkg = await Bun.file(pkgPath).json();
-          console.log(pkg.version ?? 'unknown');
-        } catch {
-          console.log('unknown');
+        const profile = await switchProfile(firstArg, resolve);
+        ui.success(
+          `Switched to ${ui.bold(firstArg)}  ${ui.formatSubscription(profile.subscriptionType)}`,
+        );
+        if (profile.email) {
+          ui.hint(`  ${profile.email}`);
         }
-        return;
+        ui.blank();
       }
+    } catch (error) {
+      ui.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
 
-      default: {
-        const profiles = await listProfiles(resolve);
-        const match = profiles.find((p) => p.name === command);
-        if (match) {
-          return use(command, resolve);
-        }
-        ui.error(`Unknown command: "${command}"`);
-        console.log(HELP);
-        process.exit(1);
-      }
-    }
-  } catch (error) {
-    if (error instanceof Error) {
-      ui.error(error.message);
-    } else {
-      ui.error(String(error));
-    }
-    process.exit(1);
+    process.exit(0);
   }
 }
 
-main();
+runMain(main);
