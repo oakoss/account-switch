@@ -48,48 +48,82 @@ async function readAcswrc(path: string): Promise<AcswrcConfig | null> {
   return obj as AcswrcConfig;
 }
 
-async function applyAcswrc(): Promise<void> {
-  try {
-    const rcPath = await findAcswrc(process.cwd());
-    if (!rcPath) return;
+const APPLY_TIMEOUT_MS = 5000;
 
-    const rc = await readAcswrc(rcPath);
-    if (!rc) return;
+async function applyAcswrcInner(): Promise<void> {
+  if (process.env.CI) {
+    ui.info('acsw: skipping auto-switch in CI environment');
+    return;
+  }
 
-    if (!rc.profile) {
-      ui.warn(`acsw: .acswrc at ${rcPath} is missing a "profile" key`);
-      return;
-    }
+  const rcPath = await findAcswrc(process.cwd());
+  if (!rcPath) return;
 
-    const targetProfile = rc.profile.trim();
-    if (!targetProfile) {
-      ui.warn(`acsw: .acswrc at ${rcPath} has an empty "profile" value`);
-      return;
-    }
+  const rc = await readAcswrc(rcPath);
+  if (!rc) return;
 
-    const state = await readState();
-    if (state.active === targetProfile) return;
+  if (!rc.profile) {
+    ui.warn(`acsw: .acswrc at ${rcPath} is missing a "profile" key`);
+    return;
+  }
 
-    // Non-interactive: skip the confirm prompt that guardClaudeRunning uses
-    const { isClaudeRunning } = await import('@lib/process');
-    const running = await isClaudeRunning();
-    if (running) {
-      ui.warn('acsw: Claude Code is running, skipping auto-switch');
-      return;
-    }
+  const targetProfile = rc.profile.trim();
+  if (!targetProfile) {
+    ui.warn(`acsw: .acswrc at ${rcPath} has an empty "profile" value`);
+    return;
+  }
 
-    const config = createProviderConfig();
-    const resolve = createResolver(config);
-    const result = await switchProfile(targetProfile, resolve);
+  const state = await readState();
+  if (state.active === targetProfile) return;
 
-    ui.info(
-      `acsw: switched to ${ui.bold(targetProfile)}  ${ui.formatSubscription(result.subscriptionType)}`,
+  const { isClaudeRunning } = await import('@lib/process');
+  const running = await isClaudeRunning();
+  if (running === null) {
+    ui.warn(
+      'acsw: could not determine if Claude Code is running, skipping auto-switch',
     );
+    return;
+  }
+  if (running) {
+    ui.warn('acsw: Claude Code is running, skipping auto-switch');
+    return;
+  }
+
+  const config = createProviderConfig();
+  const resolve = createResolver(config);
+  const result = await switchProfile(targetProfile, resolve);
+
+  ui.info(
+    `acsw: switched to ${ui.bold(targetProfile)}  ${ui.formatSubscription(result.subscriptionType)}`,
+  );
+}
+
+async function applyAcswrc(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const inner = applyAcswrcInner().then(() => 'ok' as const);
+    inner.catch(() => {});
+
+    const result = await Promise.race([
+      inner,
+      new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(() => resolve('timeout'), APPLY_TIMEOUT_MS);
+      }),
+    ]);
+    if (result === 'timeout') {
+      ui.warn(`acsw: auto-switch timed out after ${APPLY_TIMEOUT_MS / 1000}s`);
+      ui.hint(
+        "Run 'acsw use <profile>' manually, or 'acsw repair' to check state.",
+      );
+      process.exitCode = 1;
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     ui.error(`acsw: ${msg}`);
     ui.hint("Run 'acsw repair' if this persists.");
     process.exitCode = 1;
+  } finally {
+    clearTimeout(timer);
   }
 }
 

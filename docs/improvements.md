@@ -8,40 +8,39 @@ Items that need a spike or benchmark before committing to a plan.
 
 ### Startup time benchmarking
 
-**Status:** Investigate
+**Status:** Done (2026-03-24)
 
-The `env --apply` hook runs on every `cd`. If the compiled binary takes 100ms+ to cold-start, users will feel lag on every directory change. This is the most user-facing performance characteristic of the tool.
+Benchmarked `time acsw env --apply` on macOS arm64 (compiled binary via `bun build --compile`):
 
-**Action:** Benchmark `time acsw env --apply` in the common paths:
-- No `.acswrc` present (fast-path exit)
-- `.acswrc` present, already on correct profile (no-op)
-- `.acswrc` present, switch needed
+| Scenario | Time | Memory |
+|----------|------|--------|
+| No `.acswrc` (fast path) | ~20ms | ~29 MB |
+| `.acswrc` present, switch attempt | ~40ms | ~32 MB |
+| Cold start (first run after build) | ~680ms | ~29 MB |
+| Binary size | 58 MB | — |
 
-Compare: `bun run src/index.ts` (interpreted) vs `dist/acsw` (compiled). If cold-start is a problem, mitigations include:
-- Caching the last-applied profile + directory in a temp file to short-circuit the check
-- Reducing import graph for the `env --apply` path (lazy-load heavy modules)
-- Keeping the compiled binary warm via shell function wrapper
+Both hot paths are under the 50ms target (fnm targets <5ms, but it's Rust). The 680ms cold start only happens once after install or system restart.
 
-**Why this is high priority:** Every other improvement is pointless if the shell hook is too slow to use. fnm targets <5ms for its hook; acsw should aim for <50ms.
+**Mitigations added:**
+- 5-second timeout on `applyAcswrc()` — if anything hangs (keychain prompt, slow disk, stalled `pgrep`), the hook bails with a warning instead of blocking the shell
+- CI early-exit — `if (process.env.CI) return;` skips the hook entirely in CI
+
+**Binary size note:** 58 MB is the Bun runtime overhead. Every Bun CLI pays this cost. Not reducible without switching runtimes.
 
 ### `@napi-rs/keyring` + `bun build --compile` compatibility
 
-**Status:** Investigate
+**Status:** Done (2026-03-24) — compatible
 
-Native NAPI-RS `.node` addons may not bundle correctly into a standalone Bun binary. This could block both the `@napi-rs/keyring` migration and cross-platform credential support.
+Spiked with a minimal test: write/read/delete via `@napi-rs/keyring`, then `bun build --compile` and run the compiled binary.
 
-**Action:** Spike with a minimal test:
-1. `bun add @napi-rs/keyring`
-2. Write a 10-line script that reads/writes a keychain entry
-3. `bun build --compile` and run the compiled binary
-4. Verify the `.node` native addon loads and keychain operations work
+**Results:**
+- Interpreted (`bun run`): all operations pass
+- Compiled (`bun build --compile`): all operations pass
+- Cross-verified via `security find-generic-password` — the compiled binary writes to the real macOS Keychain
+- Binary size impact: +1 MB (58 → 59 MB) — negligible
+- API note: `getPassword()` returns `null` after delete instead of throwing — the `CredentialStore` interface already returns `null` for missing credentials, so this aligns
 
-If it fails, the options are:
-- Keep the current shell-out approach for macOS (`security` CLI)
-- Shell out to `secret-tool` on Linux, `cmdkey` / PowerShell on Windows
-- Wait for Bun's native addon bundling to mature
-
-**Why this is high priority:** The `@napi-rs/keyring` adoption in the "Platform support" section depends on this. No point planning the migration until we know it works in the compiled binary.
+**Conclusion:** The `@napi-rs/keyring` migration in the "Platform support" section is unblocked.
 
 ### Competitor analysis
 
@@ -61,6 +60,20 @@ Evaluate competing tools for UX gaps and ideas worth stealing:
 Homebrew users expect `man acsw`. Tools like `marked-man` or `ronn-ng` generate man pages from markdown.
 
 **Approach:** Write a single `acsw.1.md` source file covering all subcommands. Generate the man page during `pnpm build` and include it in the Homebrew formula. ~1 page of markdown, no runtime dependency.
+
+### Rust rewrite
+
+**Status:** Revisit later
+
+The compiled Bun binary is 58 MB (vs ~3-5 MB for a Rust binary) with a 680ms cold start (vs ~1-2ms in Rust). A Rust rewrite would also give native `keyring-rs` access without the NAPI bridge question.
+
+**Trade-offs:**
+- Full rewrite of ~1,800 lines of TypeScript
+- Lose `@clack/prompts` — Rust alternatives (`dialoguer`, `inquire`) are good but different
+- Slower iteration speed during development
+- Narrower contributor pool
+
+**When to revisit:** If binary size becomes distribution friction (Homebrew downloads, CI caching), if the `@napi-rs/keyring` spike fails, or if the hook path gets heavy enough that cold start matters. Not justified while the current numbers are within targets and the feature roadmap is incomplete.
 
 ## CLI framework
 
@@ -425,7 +438,7 @@ The tool targets minimal runtime dependencies (currently 2: `citty` + `@clack/pr
 
 | Library | Category | Why | Blocker |
 |---------|----------|-----|---------|
-| `@napi-rs/keyring` | Credentials | Cross-platform (macOS/Windows/Linux), zero runtime deps, prebuilt NAPI-RS binaries, no build step | Must verify `bun build --compile` compatibility — see "Investigation needed" section |
+| `@napi-rs/keyring` | Credentials | Cross-platform (macOS/Windows/Linux), zero runtime deps, prebuilt NAPI-RS binaries, no build step | None — `bun build --compile` compatibility verified (2026-03-24) |
 
 ## Architecture
 
