@@ -1,7 +1,12 @@
+import type { Provider } from '../lib/types';
+
 import { profileExists, removeProfile, readState } from '../lib/profiles';
 import * as ui from '../lib/ui';
 
-export async function remove(name: string | undefined): Promise<void> {
+export async function remove(
+  name: string | undefined,
+  provider: Provider,
+): Promise<void> {
   if (!name) {
     ui.error('Usage: acsw remove <name>');
     process.exit(1);
@@ -28,7 +33,7 @@ export async function remove(name: string | undefined): Promise<void> {
     return;
   }
 
-  await removeProfile(name);
+  await removeProfile(name, provider);
 
   ui.blank();
   ui.success(`Profile ${ui.bold(name)} removed`);

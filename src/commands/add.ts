@@ -1,5 +1,5 @@
-import { readOAuthAccount } from '../lib/config';
-import { readCredentials } from '../lib/credentials';
+import type { Provider } from '../lib/types';
+
 import { isClaudeRunning } from '../lib/process';
 import {
   validateProfileName,
@@ -8,7 +8,10 @@ import {
 } from '../lib/profiles';
 import * as ui from '../lib/ui';
 
-export async function add(name: string | undefined): Promise<void> {
+export async function add(
+  name: string | undefined,
+  provider: Provider,
+): Promise<void> {
   if (!name) {
     ui.error('Usage: acsw add <name>');
     process.exit(1);
@@ -39,23 +42,22 @@ export async function add(name: string | undefined): Promise<void> {
     if (!ok) process.exit(0);
   }
 
-  // Read current credentials to verify they exist
-  const creds = await readCredentials();
-  if (!creds) {
+  const snapshot = await provider.snapshot();
+  if (!snapshot) {
     ui.error('No OAuth credentials found.');
     ui.hint("Log in with 'claude' first, then run this command again.");
     process.exit(1);
   }
 
-  const account = await readOAuthAccount();
-  if (account?.emailAddress) {
-    ui.info(`Found active session: ${account.emailAddress}`);
-    if (account.organizationName) {
-      ui.hint(`  ${account.organizationName}`);
+  const info = provider.displayInfo(snapshot);
+  if (info.label) {
+    ui.info(`Found active session: ${info.label}`);
+    if (info.context) {
+      ui.hint(`  ${info.context}`);
     }
   }
 
-  await addOAuthProfile(name);
+  await addOAuthProfile(name, provider);
 
   ui.blank();
   ui.success(`Profile ${ui.bold(name)} saved`);

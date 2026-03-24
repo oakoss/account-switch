@@ -29,6 +29,7 @@ export type ProfileType = 'oauth' | 'api-key';
 export type ProfileMeta = {
   name: string;
   type: ProfileType;
+  provider: string;
   createdAt: string;
   lastUsed: string | null;
 };
@@ -46,3 +47,25 @@ export type ProfileInfo = {
 };
 
 export type RepairResult = { profile: string; issue: string; fixed: boolean };
+
+export type ProviderSnapshot = { credentials: unknown; identity: unknown };
+
+export type ProviderDisplayInfo = {
+  label: string | null;
+  context: string | null;
+  tier: string | null;
+};
+
+export type ProviderConfig = {
+  platform: NodeJS.Platform;
+  homedir: string;
+  env: Record<string, string | undefined>;
+};
+
+export type Provider = {
+  readonly name: string;
+  snapshot(): Promise<ProviderSnapshot | null>;
+  restore(snapshot: ProviderSnapshot): Promise<void>;
+  clear(): Promise<void>;
+  displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo;
+};

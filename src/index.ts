@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import { homedir } from 'node:os';
+
+import type { ProviderConfig } from './lib/types';
+
 import { add } from './commands/add';
 import { current } from './commands/current';
 import { list } from './commands/list';
@@ -7,7 +11,16 @@ import { remove } from './commands/remove';
 import { repair } from './commands/repair';
 import { use } from './commands/use';
 import { listProfiles } from './lib/profiles';
+import { createDefaultProvider } from './lib/providers/registry';
 import * as ui from './lib/ui';
+
+const config: ProviderConfig = {
+  platform: process.platform,
+  homedir: homedir(),
+  env: process.env as Record<string, string | undefined>,
+};
+
+const provider = createDefaultProvider(config);
 
 const HELP = `
   ${ui.bold('acsw')} — Switch between Claude Code accounts
@@ -30,7 +43,7 @@ const HELP = `
 `;
 
 async function interactivePicker(): Promise<void> {
-  const profiles = await listProfiles();
+  const profiles = await listProfiles(provider);
 
   if (profiles.length === 0) {
     ui.blank();
@@ -76,7 +89,7 @@ async function interactivePicker(): Promise<void> {
     return;
   }
 
-  await use(selected.name);
+  await use(selected.name, provider);
 }
 
 async function main(): Promise<void> {
@@ -89,25 +102,25 @@ async function main(): Promise<void> {
       }
 
       case 'add': {
-        return add(args[0]);
+        return add(args[0], provider);
       }
 
       case 'use': {
-        return use(args[0]);
+        return use(args[0], provider);
       }
 
       case 'list':
       case 'ls': {
-        return list();
+        return list(provider);
       }
 
       case 'remove':
       case 'rm': {
-        return remove(args[0]);
+        return remove(args[0], provider);
       }
 
       case 'current': {
-        return current();
+        return current(provider);
       }
 
       case 'repair': {
@@ -135,10 +148,10 @@ async function main(): Promise<void> {
 
       default: {
         // Treat unknown arg as a profile name shortcut
-        const profiles = await listProfiles();
+        const profiles = await listProfiles(provider);
         const match = profiles.find((p) => p.name === command);
         if (match) {
-          return use(command);
+          return use(command, provider);
         }
         ui.error(`Unknown command: "${command}"`);
         console.log(HELP);

@@ -4,13 +4,15 @@ CLI tool for switching between Claude Code OAuth accounts. Package name: `accoun
 
 ## Architecture
 
-The tool swaps two things when switching profiles:
+Credential storage is abstracted behind a `Provider` interface (`src/lib/providers/`). Each provider implements `snapshot()`, `restore()`, `clear()`, and `displayInfo()`. The profile layer (`profiles.ts`) orchestrates switching via opaque snapshots without knowing provider-specific storage details.
+
+The Claude provider (`providers/claude.ts`) swaps two things:
 1. **OAuth credentials** — macOS Keychain (via `security` CLI) or `~/.claude/.credentials.json` on Linux
 2. **`oauthAccount` field** in `~/.claude.json`
 
 It never touches `settings.json`, `settings.local.json`, memory, plugins, or project config.
 
-Profiles are stored in `~/.acsw/` with one directory per profile containing `credentials.json`, `account.json`, and `profile.json`.
+Profiles are stored in `~/.acsw/` with one directory per profile containing `credentials.json`, `account.json`, and `profile.json`. `ProviderConfig` (platform, homedir, env) is injected into providers for testability.
 
 ### Key invariants
 
@@ -19,6 +21,7 @@ Profiles are stored in `~/.acsw/` with one directory per profile containing `cre
 - All JSON writes use atomic temp-file-then-rename pattern
 - Credential files are `chmod 600`
 - Keychain reads consume stdout/stderr before awaiting exit to avoid pipe deadlock
+- Provider `clear()` runs before state updates to avoid corrupted state on failure
 
 ## Commands
 
@@ -45,7 +48,7 @@ pnpm build            # compile standalone binary to dist/acsw
 
 ## Testing
 
-Tests use `bun:test`. Current tests are in `tests/` and cover basic file operations. The exported functions in `src/lib/` need proper integration tests (tracked in docs/improvements.md).
+Tests use `bun:test`. Mock provider factories (`createMockProvider`, `createFailingProvider`) are available in `tests/profiles.test.ts` for testing profile operations without filesystem or Keychain access. Integration tests for exported functions are tracked in docs/improvements.md.
 
 ## CI/CD
 

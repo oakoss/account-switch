@@ -1,8 +1,13 @@
+import type { Provider } from '../lib/types';
+
 import { isClaudeRunning } from '../lib/process';
 import { profileExists, switchProfile, readState } from '../lib/profiles';
 import * as ui from '../lib/ui';
 
-export async function use(name: string | undefined): Promise<void> {
+export async function use(
+  name: string | undefined,
+  provider: Provider,
+): Promise<void> {
   if (!name) {
     ui.error('Usage: acsw use <name>');
     process.exit(1);
@@ -37,7 +42,7 @@ export async function use(name: string | undefined): Promise<void> {
   }
 
   ui.blank();
-  const profile = await switchProfile(name);
+  const profile = await switchProfile(name, provider);
 
   ui.success(
     `Switched to ${ui.bold(name)}  ${ui.formatSubscription(profile.subscriptionType)}`,

@@ -4,25 +4,30 @@ import { CLAUDE_JSON } from './constants';
 
 type ClaudeJson = { oauthAccount?: OAuthAccount; [key: string]: unknown };
 
-export async function readOAuthAccount(): Promise<OAuthAccount | null> {
-  const file = Bun.file(CLAUDE_JSON);
+export async function readOAuthAccount(
+  path?: string,
+): Promise<OAuthAccount | null> {
+  const configPath = path ?? CLAUDE_JSON;
+  const file = Bun.file(configPath);
   if (!(await file.exists())) return null;
   try {
     const data = (await file.json()) as ClaudeJson;
     return data.oauthAccount ?? null;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`~/.claude.json exists but could not be parsed: ${msg}`);
+    throw new Error(`${configPath} exists but could not be parsed: ${msg}`);
   }
 }
 
 export async function writeOAuthAccount(
   account: OAuthAccount | null,
+  path?: string,
 ): Promise<void> {
-  const file = Bun.file(CLAUDE_JSON);
+  const configPath = path ?? CLAUDE_JSON;
+  const file = Bun.file(configPath);
   if (!(await file.exists())) {
     throw new Error(
-      `${CLAUDE_JSON} not found. Run 'claude' first to initialize.`,
+      `${configPath} not found. Run 'claude' first to initialize.`,
     );
   }
 
@@ -33,7 +38,7 @@ export async function writeOAuthAccount(
   } catch (error) {
     const parseMsg = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `~/.claude.json is corrupted and cannot be updated: ${parseMsg}. ` +
+      `${configPath} is corrupted and cannot be updated: ${parseMsg}. ` +
         `Back up the file and run 'claude' to reinitialize it.`,
     );
   }
@@ -44,11 +49,11 @@ export async function writeOAuthAccount(
     delete data.oauthAccount;
   }
 
-  const tmpPath = `${CLAUDE_JSON}.tmp`;
+  const tmpPath = `${configPath}.tmp`;
   try {
     await Bun.write(tmpPath, JSON.stringify(data, null, 2));
     const { renameSync } = await import('node:fs');
-    renameSync(tmpPath, CLAUDE_JSON);
+    renameSync(tmpPath, configPath);
   } catch (error) {
     try {
       const { unlinkSync } = await import('node:fs');

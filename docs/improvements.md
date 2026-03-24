@@ -26,20 +26,26 @@ Both are zero-dep, ~4-5KB each, Bun-compatible, and from trusted maintainers.
 
 ### Provider abstraction
 
-**Status:** Planned (high priority)
+**Status:** Done (foundation) — next: add providers
 
-Currently only supports Claude Code. The core mechanism (swap credentials + identity) applies to any CLI tool with stored auth. Each provider would implement a simple interface:
+The `Provider` interface is implemented with a snapshot/restore design. Each provider bundles credentials + identity into an opaque snapshot, enabling atomic switching with rollback:
 
 ```typescript
 type Provider = {
-  name: string
-  readCredentials(): Promise<unknown | null>
-  writeCredentials(creds: unknown): Promise<void>
-  deleteCredentials(): Promise<void>
-  readIdentity(): Promise<unknown | null>
-  writeIdentity(identity: unknown | null): Promise<void>
+  readonly name: string
+  snapshot(): Promise<ProviderSnapshot | null>
+  restore(snapshot: ProviderSnapshot): Promise<void>
+  clear(): Promise<void>
+  displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo
 }
 ```
+
+`ProviderConfig` (platform, homedir, env) is injected for testability. The Claude provider is in `src/lib/providers/claude.ts`, with a registry in `src/lib/providers/registry.ts`.
+
+**Remaining work:**
+- Add generics (`Provider<C, I>`) to eliminate `as` casts in provider implementations
+- Wire `ProfileMeta.provider` for dispatch (currently written but not read)
+- Add `--provider` flag to `acsw add`
 
 **Target providers:**
 
@@ -252,14 +258,14 @@ brew install account-switch
 
 ### Test coverage
 
-**Status:** Planned
+**Status:** In progress
 
-Current tests don't exercise exported functions. Need:
-- `switchProfile()` integration tests (5+ cases)
-- `addOAuthProfile()` / `removeProfile()` tests
+Mock provider infrastructure is in place (`createMockProvider`, `createFailingProvider`). Still need:
+- `switchProfile()` tests via mock provider (happy path, rollback, rollback failure — 5+ cases)
+- `addOAuthProfile()` / `removeProfile()` tests via mock provider
+- `listProfiles()` tests verifying `displayInfo()` extraction
 - Real `readCredentials` / `writeCredentials` tests via path param
 - `repair` tests with intentionally broken profiles
-- Module mocking via `bun:test` `mock.module()`
 
 Target: 80%+ coverage on `src/lib/`.
 

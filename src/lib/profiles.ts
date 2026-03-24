@@ -4,11 +4,10 @@ import type {
   ProfileState,
   ProfileMeta,
   ProfileInfo,
-  OAuthAccount,
-  OAuthCredentials,
+  Provider,
+  ProviderSnapshot,
 } from './types';
 
-import { readOAuthAccount, writeOAuthAccount } from './config';
 import {
   PROFILES_DIR,
   STATE_FILE,
@@ -18,11 +17,6 @@ import {
   profileAccountFile,
   profileMetaFile,
 } from './constants';
-import {
-  readCredentials,
-  writeCredentials,
-  deleteCredentials,
-} from './credentials';
 
 async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
@@ -97,22 +91,66 @@ export async function profileExists(name: string): Promise<boolean> {
 function buildProfileInfo(
   name: string,
   meta: ProfileMeta,
-  account: OAuthAccount | null,
-  creds: OAuthCredentials | null,
   isActive: boolean,
+  snapshot?: ProviderSnapshot | null,
+  provider?: Provider,
 ): ProfileInfo {
+  let email: string | null = null;
+  let subscriptionType: string | null = null;
+  let organizationName: string | null = null;
+
+  if (snapshot && provider) {
+    const info = provider.displayInfo(snapshot);
+    email = info.label;
+    organizationName = info.context;
+    subscriptionType = info.tier;
+  }
+
   return {
     name,
     type: meta.type,
-    email: account?.emailAddress ?? null,
-    subscriptionType: creds?.claudeAiOauth?.subscriptionType ?? null,
-    organizationName: account?.organizationName ?? null,
+    email,
+    subscriptionType,
+    organizationName,
     isActive,
     lastUsed: meta.lastUsed,
   };
 }
 
-export async function listProfiles(): Promise<ProfileInfo[]> {
+async function readProfileSnapshot(
+  name: string,
+): Promise<ProviderSnapshot | null> {
+  const creds = await readJsonOptional(profileCredentialsFile(name));
+  if (!creds) return null;
+  const identity = await readJsonOptional(profileAccountFile(name));
+  return { credentials: creds, identity };
+}
+
+async function writeProfileSnapshot(
+  name: string,
+  snapshot: ProviderSnapshot,
+): Promise<void> {
+  await writeJson(profileCredentialsFile(name), snapshot.credentials, 0o600);
+  if (snapshot.identity) {
+    await writeJson(profileAccountFile(name), snapshot.identity);
+  } else {
+    const { unlink } = await import('node:fs/promises');
+    try {
+      await unlink(profileAccountFile(name));
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      )
+        return;
+      throw error;
+    }
+  }
+}
+
+export async function listProfiles(provider: Provider): Promise<ProfileInfo[]> {
   await ensureDir(PROFILES_DIR);
   const state = await readState();
 
@@ -139,43 +177,33 @@ export async function listProfiles(): Promise<ProfileInfo[]> {
     const meta = await readJsonOptional<ProfileMeta>(profileMetaFile(name));
     if (!meta) continue;
 
-    const account = await readJsonOptional<OAuthAccount>(
-      profileAccountFile(name),
-    );
-    let creds: OAuthCredentials | null = null;
-    if (meta.type === 'oauth') {
-      creds = await readJsonOptional<OAuthCredentials>(
-        profileCredentialsFile(name),
-      );
-    }
-
+    const snapshot = await readProfileSnapshot(name);
     profiles.push(
-      buildProfileInfo(name, meta, account, creds, state.active === name),
+      buildProfileInfo(name, meta, state.active === name, snapshot, provider),
     );
   }
 
   return profiles.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function addOAuthProfile(name: string): Promise<void> {
+export async function addOAuthProfile(
+  name: string,
+  provider: Provider,
+): Promise<void> {
   const dir = profileDir(name);
   await ensureDir(dir);
 
-  const creds = await readCredentials();
-  if (!creds) {
+  const snapshot = await provider.snapshot();
+  if (!snapshot) {
     throw new Error("No OAuth credentials found. Log in with 'claude' first.");
   }
 
-  const account = await readOAuthAccount();
-
   try {
-    await writeJson(profileCredentialsFile(name), creds, 0o600);
-    if (account) {
-      await writeJson(profileAccountFile(name), account);
-    }
+    await writeProfileSnapshot(name, snapshot);
     await writeJson(profileMetaFile(name), {
       name,
       type: 'oauth',
+      provider: provider.name,
       createdAt: new Date().toISOString(),
       lastUsed: new Date().toISOString(),
     });
@@ -190,7 +218,10 @@ export async function addOAuthProfile(name: string): Promise<void> {
   }
 }
 
-export async function switchProfile(name: string): Promise<ProfileInfo> {
+export async function switchProfile(
+  name: string,
+  provider: Provider,
+): Promise<ProfileInfo> {
   if (!(await profileExists(name))) {
     throw new Error(`Profile "${name}" does not exist`);
   }
@@ -198,45 +229,32 @@ export async function switchProfile(name: string): Promise<ProfileInfo> {
   const state = await readState();
   const targetMeta = await readJsonWithFallback<ProfileMeta>(
     profileMetaFile(name),
-    { name, type: 'oauth', createdAt: '', lastUsed: null },
+    { name, type: 'oauth', provider: 'claude', createdAt: '', lastUsed: null },
   );
 
+  // Snapshot current live credentials back to the outgoing profile
   if (
     state.active &&
     state.active !== name &&
     (await profileExists(state.active))
   ) {
-    const currentCreds = await readCredentials();
-    if (currentCreds) {
-      await writeJson(
-        profileCredentialsFile(state.active),
-        currentCreds,
-        0o600,
-      );
-    }
-    const currentAccount = await readOAuthAccount();
-    if (currentAccount) {
-      await writeJson(profileAccountFile(state.active), currentAccount);
+    const currentSnapshot = await provider.snapshot();
+    if (currentSnapshot) {
+      await writeProfileSnapshot(state.active, currentSnapshot);
     }
   }
 
   if (targetMeta.type === 'oauth') {
-    const targetCreds = await readJsonOptional<OAuthCredentials>(
-      profileCredentialsFile(name),
-    );
-    if (!targetCreds) {
+    const targetSnapshot = await readProfileSnapshot(name);
+    if (!targetSnapshot) {
       throw new Error(`No credentials found for profile "${name}"`);
     }
 
-    const originalCreds = await readCredentials();
-    const originalAccount = await readOAuthAccount();
+    // Capture live state for rollback
+    const originalSnapshot = await provider.snapshot();
 
     try {
-      await writeCredentials(targetCreds);
-      const targetAccount = await readJsonOptional<OAuthAccount>(
-        profileAccountFile(name),
-      );
-      await writeOAuthAccount(targetAccount);
+      await provider.restore(targetSnapshot);
       targetMeta.lastUsed = new Date().toISOString();
       await writeJson(profileMetaFile(name), targetMeta);
       await writeState({ active: name });
@@ -244,8 +262,7 @@ export async function switchProfile(name: string): Promise<ProfileInfo> {
       let rollbackOk = false;
       let rollbackMsg = '';
       try {
-        if (originalCreds) await writeCredentials(originalCreds);
-        await writeOAuthAccount(originalAccount);
+        if (originalSnapshot) await provider.restore(originalSnapshot);
         rollbackOk = true;
       } catch (rollbackError) {
         rollbackMsg =
@@ -270,21 +287,20 @@ export async function switchProfile(name: string): Promise<ProfileInfo> {
     await writeState({ active: name });
   }
 
-  let account: OAuthAccount | null = null;
-  let creds: OAuthCredentials | null = null;
+  let snapshot: ProviderSnapshot | null = null;
   try {
-    account = await readJsonOptional<OAuthAccount>(profileAccountFile(name));
-    creds = await readJsonOptional<OAuthCredentials>(
-      profileCredentialsFile(name),
-    );
+    snapshot = await readProfileSnapshot(name);
   } catch {
     // Non-fatal: switch succeeded, just can't read back display info
   }
 
-  return buildProfileInfo(name, targetMeta, account, creds, true);
+  return buildProfileInfo(name, targetMeta, true, snapshot, provider);
 }
 
-export async function removeProfile(name: string): Promise<void> {
+export async function removeProfile(
+  name: string,
+  provider: Provider,
+): Promise<void> {
   if (!(await profileExists(name))) {
     throw new Error(`Profile "${name}" does not exist`);
   }
@@ -292,13 +308,8 @@ export async function removeProfile(name: string): Promise<void> {
   const state = await readState();
 
   if (state.active === name) {
+    await provider.clear();
     await writeState({ active: null });
-    await deleteCredentials();
-    try {
-      await writeOAuthAccount(null);
-    } catch {
-      // ~/.claude.json may not exist — non-fatal during removal
-    }
   }
 
   await rm(profileDir(name), { recursive: true });

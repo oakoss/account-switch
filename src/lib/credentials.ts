@@ -205,13 +205,14 @@ export async function writeCredentials(
   return writeCredentialsFile(creds, CREDENTIALS_FILE);
 }
 
-export async function deleteCredentials(): Promise<void> {
-  if (IS_MACOS) {
+export async function deleteCredentials(path?: string): Promise<void> {
+  if ((!path || path === CREDENTIALS_FILE) && IS_MACOS) {
     return deleteKeychain();
   }
+  const targetPath = path ?? CREDENTIALS_FILE;
   const { unlink } = await import('node:fs/promises');
   try {
-    await unlink(CREDENTIALS_FILE);
+    await unlink(targetPath);
   } catch (error: unknown) {
     if (
       error &&
