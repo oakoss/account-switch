@@ -1,8 +1,8 @@
-import type { ProviderResolver } from '../lib/types';
+import type { ProviderResolver } from '@lib/types';
 
-import { isClaudeRunning } from '../lib/process';
-import { profileExists, switchProfile, readState } from '../lib/profiles';
-import * as ui from '../lib/ui';
+import { isClaudeRunning } from '@lib/process';
+import { profileExists, switchProfile, readState } from '@lib/profiles';
+import * as ui from '@lib/ui';
 
 export async function use(
   name: string | undefined,

@@ -1,4 +1,4 @@
-import type { Provider, ProviderConfig, ProviderResolver } from '../types';
+import type { Provider, ProviderConfig, ProviderResolver } from '@lib/types';
 
 import { createClaudeProvider } from './claude';
 

@@ -1,5 +1,5 @@
-import { repairProfiles } from '../lib/repair';
-import * as ui from '../lib/ui';
+import { repairProfiles } from '@lib/repair';
+import * as ui from '@lib/ui';
 
 export async function repair(): Promise<void> {
   ui.blank();

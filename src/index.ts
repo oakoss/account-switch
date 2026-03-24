@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 
-import { homedir } from 'node:os';
+import type { ProviderConfig } from '@lib/types';
 
-import type { ProviderConfig } from './lib/types';
-
-import { add } from './commands/add';
-import { current } from './commands/current';
-import { list } from './commands/list';
-import { remove } from './commands/remove';
-import { repair } from './commands/repair';
-import { use } from './commands/use';
-import { listProfiles } from './lib/profiles';
+import { add } from '@commands/add';
+import { current } from '@commands/current';
+import { list } from '@commands/list';
+import { remove } from '@commands/remove';
+import { repair } from '@commands/repair';
+import { use } from '@commands/use';
+import { listProfiles } from '@lib/profiles';
 import {
   createProvider,
   createDefaultProvider,
   createResolver,
-} from './lib/providers/registry';
-import * as ui from './lib/ui';
+} from '@lib/providers/registry';
+import * as ui from '@lib/ui';
+import { homedir } from 'node:os';
 
 const config: ProviderConfig = {
   platform: process.platform,

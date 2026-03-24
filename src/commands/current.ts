@@ -1,7 +1,7 @@
-import type { ProviderResolver } from '../lib/types';
+import type { ProviderResolver } from '@lib/types';
 
-import { readState, listProfiles } from '../lib/profiles';
-import * as ui from '../lib/ui';
+import { readState, listProfiles } from '@lib/profiles';
+import * as ui from '@lib/ui';
 
 export async function current(resolve: ProviderResolver): Promise<void> {
   const state = await readState();

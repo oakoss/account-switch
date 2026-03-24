@@ -1,9 +1,9 @@
+import type { Provider, ProviderSnapshot } from '@lib/types';
+
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, stat, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import type { Provider, ProviderSnapshot } from '../src/lib/types';
 
 function createMockProvider(
   initial: ProviderSnapshot | null = null,
@@ -75,7 +75,7 @@ function createFailingProvider(
 
 describe('profiles - validateProfileName', () => {
   it('validates profile names correctly', async () => {
-    const { validateProfileName } = await import('../src/lib/profiles');
+    const { validateProfileName } = await import('@lib/profiles');
 
     expect(validateProfileName('personal')).toBeNull();
     expect(validateProfileName('my-work')).toBeNull();

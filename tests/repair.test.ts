@@ -1,11 +1,10 @@
+import type { RepairConfig } from '@lib/types';
+
+import { repairProfiles } from '@lib/repair';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import type { RepairConfig } from '../src/lib/types';
-
-import { repairProfiles } from '../src/lib/repair';
 
 describe('repairProfiles', () => {
   let tempDir: string;

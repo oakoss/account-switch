@@ -1,7 +1,7 @@
-import type { ProviderResolver } from '../lib/types';
+import type { ProviderResolver } from '@lib/types';
 
-import { profileExists, removeProfile, readState } from '../lib/profiles';
-import * as ui from '../lib/ui';
+import { profileExists, removeProfile, readState } from '@lib/profiles';
+import * as ui from '@lib/ui';
 
 export async function remove(
   name: string | undefined,

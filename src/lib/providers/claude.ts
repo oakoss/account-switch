@@ -1,5 +1,3 @@
-import { join } from 'node:path';
-
 import type {
   OAuthAccount,
   OAuthCredentials,
@@ -7,14 +5,15 @@ import type {
   ProviderConfig,
   ProviderDisplayInfo,
   ProviderSnapshot,
-} from '../types';
+} from '@lib/types';
 
-import { readOAuthAccount, writeOAuthAccount } from '../config';
+import { readOAuthAccount, writeOAuthAccount } from '@lib/config';
 import {
   readCredentials,
   writeCredentials,
   deleteCredentials,
-} from '../credentials';
+} from '@lib/credentials';
+import { join } from 'node:path';
 
 type ClaudeSnapshot = {
   credentials: OAuthCredentials;

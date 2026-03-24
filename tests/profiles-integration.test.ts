@@ -1,14 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, rm, stat, readdir, mkdir, chmod } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import type {
   ProfilesConfig,
   Provider,
   ProviderResolver,
   ProviderSnapshot,
-} from '../src/lib/types';
+} from '@lib/types';
 
 import {
   addOAuthProfile,
@@ -16,7 +11,11 @@ import {
   removeProfile,
   listProfiles,
   readState,
-} from '../src/lib/profiles';
+} from '@lib/profiles';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { mkdtemp, rm, stat, readdir, mkdir, chmod } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 let tempDir: string;
 let config: ProfilesConfig;

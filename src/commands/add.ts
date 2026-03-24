@@ -1,12 +1,12 @@
-import type { Provider } from '../lib/types';
+import type { Provider } from '@lib/types';
 
-import { isClaudeRunning } from '../lib/process';
+import { isClaudeRunning } from '@lib/process';
 import {
   validateProfileName,
   profileExists,
   addOAuthProfile,
-} from '../lib/profiles';
-import * as ui from '../lib/ui';
+} from '@lib/profiles';
+import * as ui from '@lib/ui';
 
 export async function add(
   name: string | undefined,
