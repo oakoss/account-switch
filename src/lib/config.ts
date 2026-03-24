@@ -1,6 +1,7 @@
 import type { OAuthAccount } from './types';
 
 import { CLAUDE_JSON } from './constants';
+import { writeJson } from './fs';
 
 type ClaudeJson = { oauthAccount?: OAuthAccount; [key: string]: unknown };
 
@@ -49,18 +50,5 @@ export async function writeOAuthAccount(
     delete data.oauthAccount;
   }
 
-  const tmpPath = `${configPath}.tmp`;
-  try {
-    await Bun.write(tmpPath, JSON.stringify(data, null, 2));
-    const { renameSync } = await import('node:fs');
-    renameSync(tmpPath, configPath);
-  } catch (error) {
-    try {
-      const { unlinkSync } = await import('node:fs');
-      unlinkSync(tmpPath);
-    } catch {
-      /* cleanup best-effort */
-    }
-    throw error;
-  }
+  await writeJson(configPath, data);
 }

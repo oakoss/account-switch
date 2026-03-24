@@ -26,7 +26,7 @@ Profile validation and repair logic lives in `src/lib/repair.ts`, accepting a `R
 ### Key invariants
 
 - `switchProfile()` snapshots current credentials before overwriting and rolls back on failure
-- `profileDir()` validates names against `PROFILE_NAME_REGEX` to prevent path traversal
+- `profilePaths()` validates names against `PROFILE_NAME_REGEX` to prevent path traversal
 - All JSON writes use atomic temp-file-then-rename pattern
 - Credential files are `chmod 600`
 - Keychain reads consume stdout/stderr before awaiting exit to avoid pipe deadlock

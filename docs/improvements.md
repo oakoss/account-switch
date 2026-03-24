@@ -85,11 +85,9 @@ Migrated from manual arg parsing and raw ANSI UI to citty (subcommands, typed ar
 
 ### `NO_COLOR` / `FORCE_COLOR` support
 
-**Status:** Planned
+**Status:** Done
 
-`src/lib/ui/format.ts` uses raw ANSI escape codes but does not respect the [`NO_COLOR`](https://no-color.org/) or `FORCE_COLOR` environment variables. This is a de facto standard for CLI tools.
-
-**Fix:** Add a color-enabled check at the top of `format.ts` (~5 lines). When disabled, all formatting functions return the input string unmodified. No library needed — evaluated `picocolors` (6 KB, 0 deps, 140M downloads/week) but it adds no value over the existing 54-line file beyond this check.
+`src/lib/ui/format.ts` respects [`NO_COLOR`](https://no-color.org/) and `FORCE_COLOR` environment variables. Colors are enabled when `NO_COLOR` is absent and either `FORCE_COLOR` is set or stdout is a TTY. All formatting functions pass through unmodified when disabled. No library needed.
 
 ## Multi-provider support
 
@@ -467,25 +465,17 @@ Each reimplements the same flow with minor variations (interactive vs non-intera
 
 ### Consolidate atomic write in `config.ts`
 
-**Status:** Planned
+**Status:** Done
 
-`config.ts` `writeOAuthAccount()` reimplements the atomic temp-file-then-rename pattern from `fs.ts` `writeJson()`. Both do: `Bun.write(tmpPath)` → `renameSync` → catch cleanup. The duplication exists because `writeOAuthAccount` needs read-modify-write semantics (preserve other keys in `~/.claude.json`).
-
-**Fix:** Either add a `readModifyWriteJson()` utility to `fs.ts` that `config.ts` can use, or have `writeOAuthAccount` call `writeJson` internally after doing the read-modify step. This would also make `config.test.ts` actually test the exported functions rather than reimplementing the JSON logic inline.
+`config.ts` `writeOAuthAccount()` now calls `writeJson()` from `fs.ts` instead of reimplementing the atomic temp-file-then-rename pattern. The read-modify step remains in `config.ts` (it needs to preserve other keys in `~/.claude.json`), but the write is delegated.
 
 ### Unify `profilePaths` and remove dead code
 
-**Status:** Planned
+**Status:** Partially done
 
-Profile path computation exists in three places:
+Dead code removed: `profileDir()`, `profileCredentialsFile()`, `profileAccountFile()`, `profileMetaFile()` deleted from `constants.ts` (never imported by any module).
 
-1. `src/lib/constants.ts` — `profileDir()`, `profileCredentialsFile()`, `profileAccountFile()`, `profileMetaFile()` (individual functions, use `PROFILES_DIR` constant)
-2. `src/lib/profiles.ts` — `profilePaths(config, name)` (returns object, uses injected `config.profilesDir`)
-3. `src/lib/repair.ts` — `profilePaths(profilesDir, name)` (returns object, uses direct arg)
-
-The `constants.ts` versions are **dead code** — never imported by any module. Only referenced in `CLAUDE.md` docs. The `profiles.ts` and `repair.ts` versions duplicate the same core path-building logic but differ slightly: `profiles.ts` returns 4 fields (`dir`, `credentials`, `account`, `meta`) while `repair.ts` returns 3 (no `dir`). They also accept the base directory differently.
-
-**Fix:** Delete the dead functions from `constants.ts`, extract a single `profilePaths(profilesDir, name)` into a shared location (e.g., `fs.ts` or a new `src/lib/paths.ts`), and update `profiles.ts` + `repair.ts` to use it. Update CLAUDE.md to remove the stale reference.
+**Remaining:** `profiles.ts` and `repair.ts` still have their own local `profilePaths()` functions. `profiles.ts` returns 4 fields (`dir`, `credentials`, `account`, `meta`) while `repair.ts` returns 3 (no `dir`). Could extract a shared version into `src/lib/paths.ts`, but the duplication is minor (~10 lines each).
 
 ### Extract `env.ts` logic into testable lib module
 

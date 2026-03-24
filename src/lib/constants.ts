@@ -30,22 +30,3 @@ export function getKeychainAccount(): string {
   }
   return user;
 }
-
-export function profileDir(name: string): string {
-  if (!PROFILE_NAME_REGEX.test(name)) {
-    throw new Error(`Invalid profile name: "${name}"`);
-  }
-  return join(PROFILES_DIR, name);
-}
-
-export function profileCredentialsFile(name: string): string {
-  return join(profileDir(name), 'credentials.json');
-}
-
-export function profileAccountFile(name: string): string {
-  return join(profileDir(name), 'account.json');
-}
-
-export function profileMetaFile(name: string): string {
-  return join(profileDir(name), 'profile.json');
-}

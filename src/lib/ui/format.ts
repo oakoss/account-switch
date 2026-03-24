@@ -1,3 +1,7 @@
+const colorsEnabled =
+  !('NO_COLOR' in process.env) &&
+  ('FORCE_COLOR' in process.env || process.stdout.isTTY === true);
+
 const RESET = '\u001B[0m';
 const BOLD = '\u001B[1m';
 const DIM = '\u001B[2m';
@@ -8,36 +12,40 @@ const BLUE = '\u001B[34m';
 const CYAN = '\u001B[36m';
 const MAGENTA = '\u001B[35m';
 
+function wrap(code: string, text: string): string {
+  return colorsEnabled ? `${code}${text}${RESET}` : text;
+}
+
 export function bold(text: string): string {
-  return `${BOLD}${text}${RESET}`;
+  return wrap(BOLD, text);
 }
 
 export function dim(text: string): string {
-  return `${DIM}${text}${RESET}`;
+  return wrap(DIM, text);
 }
 
 export function green(text: string): string {
-  return `${GREEN}${text}${RESET}`;
+  return wrap(GREEN, text);
 }
 
 export function red(text: string): string {
-  return `${RED}${text}${RESET}`;
+  return wrap(RED, text);
 }
 
 export function cyan(text: string): string {
-  return `${CYAN}${text}${RESET}`;
+  return wrap(CYAN, text);
 }
 
 export function yellow(text: string): string {
-  return `${YELLOW}${text}${RESET}`;
+  return wrap(YELLOW, text);
 }
 
 export function magenta(text: string): string {
-  return `${MAGENTA}${text}${RESET}`;
+  return wrap(MAGENTA, text);
 }
 
 export function blue(text: string): string {
-  return `${BLUE}${text}${RESET}`;
+  return wrap(BLUE, text);
 }
 
 export function formatSubscription(sub: string | null): string {
