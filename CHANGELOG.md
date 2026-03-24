@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.1.14](https://github.com/oakoss/account-switch/compare/v0.1.13...v0.1.14) (2026-03-24)
+
 ## [0.1.13](https://github.com/oakoss/account-switch/compare/v0.1.12...v0.1.13) (2026-03-24)
 
 ## [0.1.12](https://github.com/oakoss/account-switch/compare/v0.1.11...v0.1.12) (2026-03-24)
