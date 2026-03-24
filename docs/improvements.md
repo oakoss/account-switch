@@ -43,9 +43,8 @@ type Provider = {
 `ProviderConfig` (platform, homedir, env) is injected for testability. The Claude provider is in `src/lib/providers/claude.ts`, with a registry in `src/lib/providers/registry.ts`.
 
 **Remaining work:**
-- Add generics (`Provider<C, I>`) to eliminate `as` casts in provider implementations
-- Wire `ProfileMeta.provider` for dispatch (currently written but not read)
-- Add `--provider` flag to `acsw add`
+- Generics on `Provider` blocked by TypeScript variance on `restore()` parameter — using `ClaudeSnapshot` type alias with single boundary cast instead
+- Add concrete providers (GitHub CLI, AWS CLI, etc.)
 
 **Target providers:**
 
@@ -260,10 +259,14 @@ brew install account-switch
 
 **Status:** In progress
 
-Mock provider infrastructure is in place (`createMockProvider`, `createFailingProvider`). Repair library has 13 tests via `RepairConfig` path injection. Still need:
-- `switchProfile()` tests via mock provider (happy path, rollback, rollback failure — 5+ cases)
-- `addOAuthProfile()` / `removeProfile()` tests via mock provider
-- `listProfiles()` tests verifying `displayInfo()` extraction
+Integration tests use `mock.module` to redirect `constants.ts` paths to a temp directory. Coverage includes:
+- `switchProfile()` — happy path, outgoing snapshot, rollback, rollback failure, missing profile, missing credentials (6 cases)
+- `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
+- `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
+- `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
+- Repair library — 14 tests via `RepairConfig` path injection
+
+Still need:
 - Real `readCredentials` / `writeCredentials` tests via path param
 
 Target: 80%+ coverage on `src/lib/`.

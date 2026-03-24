@@ -1,9 +1,9 @@
-import type { Provider } from '../lib/types';
+import type { ProviderResolver } from '../lib/types';
 
 import { readState, listProfiles } from '../lib/profiles';
 import * as ui from '../lib/ui';
 
-export async function current(provider: Provider): Promise<void> {
+export async function current(resolve: ProviderResolver): Promise<void> {
   const state = await readState();
 
   ui.blank();
@@ -15,7 +15,7 @@ export async function current(provider: Provider): Promise<void> {
     return;
   }
 
-  const profiles = await listProfiles(provider);
+  const profiles = await listProfiles(resolve);
   const active = profiles.find((p) => p.isActive);
 
   if (!active) {

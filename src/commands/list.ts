@@ -1,10 +1,10 @@
-import type { Provider } from '../lib/types';
+import type { ProviderResolver } from '../lib/types';
 
 import { listProfiles } from '../lib/profiles';
 import * as ui from '../lib/ui';
 
-export async function list(provider: Provider): Promise<void> {
-  const profiles = await listProfiles(provider);
+export async function list(resolve: ProviderResolver): Promise<void> {
+  const profiles = await listProfiles(resolve);
 
   ui.blank();
 

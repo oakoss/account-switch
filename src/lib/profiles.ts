@@ -5,6 +5,7 @@ import type {
   ProfileMeta,
   ProfileInfo,
   Provider,
+  ProviderResolver,
   ProviderSnapshot,
 } from './types';
 
@@ -152,7 +153,9 @@ async function writeProfileSnapshot(
   }
 }
 
-export async function listProfiles(provider: Provider): Promise<ProfileInfo[]> {
+export async function listProfiles(
+  resolve: ProviderResolver,
+): Promise<ProfileInfo[]> {
   await ensureDir(PROFILES_DIR);
   const state = await readState();
 
@@ -179,6 +182,7 @@ export async function listProfiles(provider: Provider): Promise<ProfileInfo[]> {
     const meta = await readJsonOptional<ProfileMeta>(profileMetaFile(name));
     if (!meta) continue;
 
+    const provider = resolve(meta.provider ?? 'claude');
     const snapshot = await readProfileSnapshot(name);
     profiles.push(
       buildProfileInfo(name, meta, state.active === name, snapshot, provider),
@@ -222,7 +226,7 @@ export async function addOAuthProfile(
 
 export async function switchProfile(
   name: string,
-  provider: Provider,
+  resolve: ProviderResolver,
 ): Promise<ProfileInfo> {
   if (!(await profileExists(name))) {
     throw new Error(`Profile "${name}" does not exist`);
@@ -234,13 +238,26 @@ export async function switchProfile(
     { name, type: 'oauth', provider: 'claude', createdAt: '', lastUsed: null },
   );
 
+  const provider = resolve(targetMeta.provider ?? 'claude');
+
   // Snapshot current live credentials back to the outgoing profile
   if (
     state.active &&
     state.active !== name &&
     (await profileExists(state.active))
   ) {
-    const currentSnapshot = await provider.snapshot();
+    const outgoingMeta = await readJsonWithFallback<ProfileMeta>(
+      profileMetaFile(state.active),
+      {
+        name: state.active,
+        type: 'oauth',
+        provider: 'claude',
+        createdAt: '',
+        lastUsed: null,
+      },
+    );
+    const outgoingProvider = resolve(outgoingMeta.provider ?? 'claude');
+    const currentSnapshot = await outgoingProvider.snapshot();
     if (currentSnapshot) {
       await writeProfileSnapshot(state.active, currentSnapshot);
     }
@@ -301,12 +318,14 @@ export async function switchProfile(
 
 export async function removeProfile(
   name: string,
-  provider: Provider,
+  resolve: ProviderResolver,
 ): Promise<void> {
   if (!(await profileExists(name))) {
     throw new Error(`Profile "${name}" does not exist`);
   }
 
+  const meta = await readJsonOptional<ProfileMeta>(profileMetaFile(name));
+  const provider = resolve(meta?.provider ?? 'claude');
   const state = await readState();
 
   if (state.active === name) {

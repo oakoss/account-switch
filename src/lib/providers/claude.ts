@@ -16,6 +16,11 @@ import {
   deleteCredentials,
 } from '../credentials';
 
+type ClaudeSnapshot = {
+  credentials: OAuthCredentials;
+  identity: OAuthAccount | null;
+};
+
 export function createClaudeProvider(config: ProviderConfig): Provider {
   const claudeDir = join(config.homedir, '.claude');
   const claudeJson = join(config.homedir, '.claude.json');
@@ -37,11 +42,11 @@ export function createClaudeProvider(config: ProviderConfig): Provider {
     },
 
     async restore(snap: ProviderSnapshot): Promise<void> {
-      const creds = snap.credentials as OAuthCredentials;
+      const { credentials, identity } = snap as ClaudeSnapshot;
       await (isMacOS
-        ? writeCredentials(creds)
-        : writeCredentials(creds, credentialsFile));
-      await writeOAuthAccount(snap.identity as OAuthAccount | null, claudeJson);
+        ? writeCredentials(credentials)
+        : writeCredentials(credentials, credentialsFile));
+      await writeOAuthAccount(identity, claudeJson);
     },
 
     async clear(): Promise<void> {
@@ -57,12 +62,11 @@ export function createClaudeProvider(config: ProviderConfig): Provider {
     },
 
     displayInfo(snap: ProviderSnapshot): ProviderDisplayInfo {
-      const creds = snap.credentials as OAuthCredentials | null;
-      const account = snap.identity as OAuthAccount | null;
+      const { credentials, identity } = snap as ClaudeSnapshot;
       return {
-        label: account?.emailAddress ?? null,
-        context: account?.organizationName ?? null,
-        tier: creds?.claudeAiOauth?.subscriptionType ?? null,
+        label: identity?.emailAddress ?? null,
+        context: identity?.organizationName ?? null,
+        tier: credentials?.claudeAiOauth?.subscriptionType ?? null,
       };
     },
   };

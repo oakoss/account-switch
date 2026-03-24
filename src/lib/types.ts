@@ -73,3 +73,5 @@ export type Provider = {
   clear(): Promise<void>;
   displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo;
 };
+
+export type ProviderResolver = (name: string) => Provider;

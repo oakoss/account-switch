@@ -1,4 +1,4 @@
-import type { Provider } from '../lib/types';
+import type { ProviderResolver } from '../lib/types';
 
 import { isClaudeRunning } from '../lib/process';
 import { profileExists, switchProfile, readState } from '../lib/profiles';
@@ -6,7 +6,7 @@ import * as ui from '../lib/ui';
 
 export async function use(
   name: string | undefined,
-  provider: Provider,
+  resolve: ProviderResolver,
 ): Promise<void> {
   if (!name) {
     ui.error('Usage: acsw use <name>');
@@ -42,7 +42,7 @@ export async function use(
   }
 
   ui.blank();
-  const profile = await switchProfile(name, provider);
+  const profile = await switchProfile(name, resolve);
 
   ui.success(
     `Switched to ${ui.bold(name)}  ${ui.formatSubscription(profile.subscriptionType)}`,

@@ -1,4 +1,4 @@
-import type { Provider, ProviderConfig } from '../types';
+import type { Provider, ProviderConfig, ProviderResolver } from '../types';
 
 import { createClaudeProvider } from './claude';
 
@@ -19,4 +19,16 @@ export function createProvider(name: string, config: ProviderConfig): Provider {
 
 export function createDefaultProvider(config: ProviderConfig): Provider {
   return createProvider('claude', config);
+}
+
+export function createResolver(config: ProviderConfig): ProviderResolver {
+  const cache = new Map<string, Provider>();
+  return (name: string) => {
+    let provider = cache.get(name);
+    if (!provider) {
+      provider = createProvider(name, config);
+      cache.set(name, provider);
+    }
+    return provider;
+  };
 }

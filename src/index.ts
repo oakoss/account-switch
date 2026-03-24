@@ -11,7 +11,11 @@ import { remove } from './commands/remove';
 import { repair } from './commands/repair';
 import { use } from './commands/use';
 import { listProfiles } from './lib/profiles';
-import { createDefaultProvider } from './lib/providers/registry';
+import {
+  createProvider,
+  createDefaultProvider,
+  createResolver,
+} from './lib/providers/registry';
 import * as ui from './lib/ui';
 
 const config: ProviderConfig = {
@@ -20,10 +24,10 @@ const config: ProviderConfig = {
   env: process.env as Record<string, string | undefined>,
 };
 
-const provider = createDefaultProvider(config);
+const resolve = createResolver(config);
 
 const HELP = `
-  ${ui.bold('acsw')} — Switch between Claude Code accounts
+  ${ui.bold('acsw')} — Switch between CLI tool accounts
 
   ${ui.dim('Usage:')}
     acsw                  Interactive profile picker
@@ -35,6 +39,9 @@ const HELP = `
     acsw repair           Validate and fix profiles
     acsw help             Show this help
 
+  ${ui.dim('Add options:')}
+    --provider <name>     Provider to use (default: claude)
+
   ${ui.dim('Shortcuts:')}
     acsw <name>           Same as 'use <name>'
     acsw ls               Same as 'list'
@@ -42,8 +49,23 @@ const HELP = `
     acsw --version        Show version
 `;
 
+function parseProviderFlag(args: string[]): {
+  providerName: string | null;
+  rest: string[];
+} {
+  const idx = args.indexOf('--provider');
+  if (idx === -1) return { providerName: null, rest: args };
+  const providerName = args[idx + 1];
+  if (!providerName || providerName.startsWith('-')) {
+    ui.error('--provider requires a value');
+    process.exit(1);
+  }
+  const rest = [...args.slice(0, idx), ...args.slice(idx + 2)];
+  return { providerName, rest };
+}
+
 async function interactivePicker(): Promise<void> {
-  const profiles = await listProfiles(provider);
+  const profiles = await listProfiles(resolve);
 
   if (profiles.length === 0) {
     ui.blank();
@@ -89,11 +111,12 @@ async function interactivePicker(): Promise<void> {
     return;
   }
 
-  await use(selected.name, provider);
+  await use(selected.name, resolve);
 }
 
 async function main(): Promise<void> {
-  const [command, ...args] = process.argv.slice(2);
+  const [command, ...rawArgs] = process.argv.slice(2);
+  const { providerName, rest: args } = parseProviderFlag(rawArgs);
 
   try {
     switch (command) {
@@ -102,25 +125,28 @@ async function main(): Promise<void> {
       }
 
       case 'add': {
+        const provider = providerName
+          ? createProvider(providerName, config)
+          : createDefaultProvider(config);
         return add(args[0], provider);
       }
 
       case 'use': {
-        return use(args[0], provider);
+        return use(args[0], resolve);
       }
 
       case 'list':
       case 'ls': {
-        return list(provider);
+        return list(resolve);
       }
 
       case 'remove':
       case 'rm': {
-        return remove(args[0], provider);
+        return remove(args[0], resolve);
       }
 
       case 'current': {
-        return current(provider);
+        return current(resolve);
       }
 
       case 'repair': {
@@ -147,11 +173,10 @@ async function main(): Promise<void> {
       }
 
       default: {
-        // Treat unknown arg as a profile name shortcut
-        const profiles = await listProfiles(provider);
+        const profiles = await listProfiles(resolve);
         const match = profiles.find((p) => p.name === command);
         if (match) {
-          return use(command, provider);
+          return use(command, resolve);
         }
         ui.error(`Unknown command: "${command}"`);
         console.log(HELP);
