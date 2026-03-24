@@ -2,6 +2,26 @@
 
 Planned enhancements for `account-switch` (`acsw`). Organized by priority.
 
+## CLI framework
+
+### Adopt citty + @clack/prompts
+
+**Status:** Planned (high priority)
+
+Replace the manual arg parsing (`switch` in `index.ts`) and raw ANSI UI (`ui.ts`) with proper CLI libraries:
+
+- **citty** (unjs) — arg parsing, subcommands, typed args, auto-generated help text
+- **@clack/prompts** — interactive prompts (select, confirm, spinner, text input)
+
+Both are zero-dep, ~4-5KB each, Bun-compatible, and from trusted maintainers.
+
+**What changes:**
+- `src/index.ts` — replace manual `switch` with citty command definitions
+- `src/lib/ui.ts` — replace raw ANSI codes and stdin reader with clack prompts
+- Help text auto-generated from command definitions instead of hand-written
+- Interactive picker becomes a proper `select()` prompt
+- Confirm dialogs become `confirm()` with proper keyboard handling
+
 ## Multi-provider support
 
 ### Provider abstraction
