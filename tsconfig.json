@@ -6,8 +6,7 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist",
-    "rootDir": ".",
+    "noEmit": true,
     "types": ["bun"],
     "paths": { "@lib/*": ["./src/lib/*"], "@commands/*": ["./src/commands/*"] }
   },

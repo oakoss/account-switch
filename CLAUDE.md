@@ -42,7 +42,7 @@ pnpm build            # compile standalone binary to dist/acsw
 ## Code conventions
 
 - **Runtime:** Bun — use `Bun.file()`, `Bun.write()`, `Bun.spawn()` instead of Node equivalents
-- **Imports:** Use `node:` protocol for Node builtins (`node:fs`, `node:path`, `node:os`)
+- **Imports:** Use `node:` protocol for Node builtins (`node:fs`, `node:path`, `node:os`). Use `@lib/` and `@commands/` aliases for cross-directory imports; use `./` relative imports for same-directory siblings
 - **Error handling:** Never silently swallow errors. Return `null` only for "file doesn't exist". Throw on corruption, permission errors, or unexpected failures. Use ENOENT-specific catches, not bare `catch {}`.
 - **Temp file cleanup:** Every write that uses a `.tmp` file must clean it up in the catch block
 - **Spawn pattern:** Always read stdout/stderr before `await proc.exited` to avoid pipe deadlock
