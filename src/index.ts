@@ -26,6 +26,7 @@ const HELP = `
     acsw <name>           Same as 'use <name>'
     acsw ls               Same as 'list'
     acsw rm <name>        Same as 'remove <name>'
+    acsw --version        Show version
 `;
 
 async function interactivePicker(): Promise<void> {

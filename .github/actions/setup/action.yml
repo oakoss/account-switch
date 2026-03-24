@@ -4,13 +4,16 @@ description: Install pnpm, Node.js, Bun, and project dependencies
 runs:
   using: composite
   steps:
-    - uses: pnpm/action-setup@v4
+    - name: Install pnpm
+      uses: pnpm/action-setup@a8198c4bff370c8506180b035930dea56dbd5288 # v5
 
-    - uses: actions/setup-node@v4
+    - name: Setup Node.js
+      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
       with:
         node-version-file: .nvmrc
 
-    - uses: oven-sh/setup-bun@v2
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
     - name: Install dependencies
       shell: bash

@@ -145,8 +145,8 @@ When you run `acsw use <name>`:
    └─ Return early if state.active === name
 
 3. Check for running Claude
-   └─ Use pgrep to detect claude process
-   └─ Warn user if found (credentials in memory)
+   └─ Use pgrep -xi claude (exact match, case-insensitive)
+   └─ Warn user if found, or if check failed (null result)
 
 4. Save current profile
    └─ Read live credentials from Keychain/file
@@ -234,8 +234,7 @@ Terminal UI primitives:
 
 Process detection for safety checks:
 
-- `isClaudeRunning()` — Use `pgrep -fl claude` to check if Claude Code is active
-- Filters false positives (ignores `acsw` itself)
+- `isClaudeRunning()` — Uses `pgrep -xi claude` (exact match, case-insensitive). Returns `boolean | null` (null when check can't run)
 
 ### `types.ts`
 

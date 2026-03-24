@@ -50,5 +50,6 @@ Tests use `bun:test`. Current tests are in `tests/` and cover basic file operati
 ## CI/CD
 
 - **CI:** `.github/workflows/ci.yml` — static analysis, tests, package validation (parallel jobs with summary)
-- **Release:** `.github/workflows/release-please.yml` — auto-generates release PRs from conventional commits, publishes to npm on merge
+- **Release:** `.github/workflows/release.yml` — changesets action creates version PRs, publishes to npm via OIDC on merge
+- **CodeQL:** `.github/workflows/codeql.yml` — security scanning (JS/TS + Actions)
 - **Hooks:** lefthook runs oxlint, oxfmt, markdownlint on pre-commit and commitlint on commit-msg

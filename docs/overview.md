@@ -1,6 +1,6 @@
 # Overview
 
-`acsw` is a CLI tool for switching between multiple Claude Code accounts. It solves a fundamental limitation of Claude Code: **only one OAuth account at a time**.
+`acsw` is a CLI tool for switching between multiple Claude Code accounts. It solves a limitation of Claude Code: **only one OAuth account at a time**.
 
 ## Problem
 
@@ -97,4 +97,4 @@ Or use the interactive picker:
 acsw
 ```
 
-See `/docs/usage.md` for complete command reference.
+See [usage.md](./usage.md) for complete command reference.

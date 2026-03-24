@@ -1,6 +1,6 @@
 # acsw Documentation
 
-Welcome to the `acsw` documentation. This directory contains comprehensive guides for understanding, using, and extending the Claude Code account switcher.
+Welcome to the `acsw` documentation. Guides for understanding, using, and extending the Claude Code account switcher.
 
 ## Documentation structure
 
@@ -144,11 +144,11 @@ Development workflow:
 ```bash
 git clone https://github.com/oakoss/account-switch
 cd account-switch
-bun install
-bun run dev           # Test current implementation
-bun test              # Run test suite
-bun run typecheck     # Check types
-bun run build:js      # Build for Node.js
+pnpm install
+bun run dev -- list   # Run from source
+bun test              # Run tests
+pnpm lint             # Lint
+pnpm format:check     # Format check
 bun run build         # Compile to binary
 ```
 
@@ -162,16 +162,6 @@ bun run build         # Compile to binary
 
 MIT. See LICENSE file.
 
-## Status
-
-- **Stability** — Production ready for core features (add, use, list, remove, current, repair)
-- **Versioning** — Semantic versioning (major.minor.patch)
-- **Maintenance** — Active development with regular updates
-
 ## Changelog
 
-See GitHub releases for detailed changelog.
-
-## Acknowledgments
-
-Inspired by community tools (`hoangvu12/acsw`, `rzkmak/acsw`) but designed with zero dependencies and minimal scope.
+See [GitHub releases](https://github.com/oakoss/account-switch/releases) for changelog.

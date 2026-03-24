@@ -443,7 +443,7 @@ The internal format is stored in `~/.acsw/<name>/`:
 - `account.json` — User info (email, organization, subscription)
 - `credentials.json` — OAuth tokens
 
-See `/docs/architecture.md` for file format details.
+See `./architecture.md` for file format details.
 
 ## Troubleshooting
 
@@ -548,6 +548,6 @@ Never share profile directories or copy `.acsw/` between machines (credentials a
 
 ## Need help?
 
-- Check `/docs/architecture.md` for internal implementation details
+- Check `./architecture.md` for internal implementation details
 - Run `acsw help` for command reference
 - Use `acsw repair` to check profile health

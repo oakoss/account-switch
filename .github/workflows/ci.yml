@@ -8,14 +8,19 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   static-analysis:
     name: Static Analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: ./.github/actions/setup
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - run: bun x tsc --noEmit
 
@@ -29,9 +34,11 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: ./.github/actions/setup
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - run: bun test
 
@@ -39,9 +46,11 @@ jobs:
     name: Package Validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - uses: ./.github/actions/setup
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - run: pnpm check-pkg
 
