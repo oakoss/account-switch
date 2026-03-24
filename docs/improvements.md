@@ -260,12 +260,11 @@ brew install account-switch
 
 **Status:** In progress
 
-Mock provider infrastructure is in place (`createMockProvider`, `createFailingProvider`). Still need:
+Mock provider infrastructure is in place (`createMockProvider`, `createFailingProvider`). Repair library has 13 tests via `RepairConfig` path injection. Still need:
 - `switchProfile()` tests via mock provider (happy path, rollback, rollback failure — 5+ cases)
 - `addOAuthProfile()` / `removeProfile()` tests via mock provider
 - `listProfiles()` tests verifying `displayInfo()` extraction
 - Real `readCredentials` / `writeCredentials` tests via path param
-- `repair` tests with intentionally broken profiles
 
 Target: 80%+ coverage on `src/lib/`.
 

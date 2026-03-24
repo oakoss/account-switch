@@ -48,6 +48,10 @@ export type ProfileInfo = {
 
 export type RepairResult = { profile: string; issue: string; fixed: boolean };
 
+export type RepairConfig = { profilesDir: string; stateFile: string };
+
+export type RepairSummary = { results: RepairResult[]; checked: number };
+
 export type ProviderSnapshot = { credentials: unknown; identity: unknown };
 
 export type ProviderDisplayInfo = {

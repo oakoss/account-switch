@@ -14,6 +14,8 @@ It never touches `settings.json`, `settings.local.json`, memory, plugins, or pro
 
 Profiles are stored in `~/.acsw/` with one directory per profile containing `credentials.json`, `account.json`, and `profile.json`. `ProviderConfig` (platform, homedir, env) is injected into providers for testability.
 
+Profile validation and repair logic lives in `src/lib/repair.ts`, accepting a `RepairConfig` (profilesDir, stateFile) for testability. The `repair` command (`src/commands/repair.ts`) is a thin display wrapper.
+
 ### Key invariants
 
 - `switchProfile()` snapshots current credentials before overwriting and rolls back on failure

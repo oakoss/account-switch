@@ -66,8 +66,10 @@ async function writeJson(
   }
 }
 
-export async function readState(): Promise<ProfileState> {
-  return readJsonWithFallback<ProfileState>(STATE_FILE, { active: null });
+export async function readState(path?: string): Promise<ProfileState> {
+  return readJsonWithFallback<ProfileState>(path ?? STATE_FILE, {
+    active: null,
+  });
 }
 
 async function writeState(state: ProfileState): Promise<void> {
