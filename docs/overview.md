@@ -60,8 +60,9 @@ When you switch profiles:
 ```bash
 git clone https://github.com/oakoss/account-switch
 cd account-switch
-bun run build
-mv dist/acsw /usr/local/bin/
+pnpm install
+pnpm build
+cp dist/acsw ~/.local/bin/
 ```
 
 ### Requirements

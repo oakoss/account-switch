@@ -10,7 +10,7 @@ Claude Code only supports one OAuth account at a time. This tool saves and resto
 git clone https://github.com/oakoss/account-switch
 cd account-switch
 pnpm install
-bun run build
+pnpm build
 cp dist/acsw ~/.local/bin/
 ```
 
@@ -69,12 +69,12 @@ See [docs/](./docs/) for architecture, usage guide, and future improvements.
 
 ```bash
 pnpm install
-bun run dev -- list        # run from source
-bun test                   # run tests
+pnpm dev -- list           # run from source
+pnpm test                  # run tests
 pnpm lint                  # oxlint
 pnpm format:check          # oxfmt
 pnpm lint:md               # markdownlint
-bun run build              # compile standalone binary
+pnpm build                 # compile standalone binary
 ```
 
 ## License

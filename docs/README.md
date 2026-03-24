@@ -136,8 +136,8 @@ Interested in contributing? Start by:
 
 1. Reading [architecture.md](./architecture.md) to understand the codebase
 2. Looking at [improvements.md](./improvements.md) for planned features
-3. Running tests with `bun test`
-4. Checking type safety with `bun run typecheck`
+3. Running tests with `pnpm test`
+4. Checking type safety with `pnpm typecheck`
 
 Development workflow:
 
@@ -145,11 +145,11 @@ Development workflow:
 git clone https://github.com/oakoss/account-switch
 cd account-switch
 pnpm install
-bun run dev -- list   # Run from source
-bun test              # Run tests
+pnpm dev -- list      # Run from source
+pnpm test             # Run tests
 pnpm lint             # Lint
 pnpm format:check     # Format check
-bun run build         # Compile to binary
+pnpm build            # Compile to binary
 ```
 
 ## Support

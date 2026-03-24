@@ -7,7 +7,8 @@
 ```bash
 git clone https://github.com/oakoss/account-switch
 cd account-switch
-bun run build
+pnpm install
+pnpm build
 ```
 
 The binary is available at `dist/acsw`. Add it to your PATH:

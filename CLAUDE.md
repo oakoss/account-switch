@@ -24,14 +24,14 @@ Profiles are stored in `~/.acsw/` with one directory per profile containing `cre
 
 ```
 pnpm install          # install deps
-bun run dev -- <cmd>  # run from source (e.g., bun run dev -- list)
-bun test              # run tests
+pnpm dev -- <cmd>     # run from source (e.g., pnpm dev -- list)
+pnpm test             # run tests
 pnpm lint             # oxlint with oxlintrc.json config
 pnpm format           # oxfmt
 pnpm format:check     # oxfmt --check
 pnpm lint:md          # markdownlint
 pnpm check-pkg        # build + publint + attw
-bun run build         # compile standalone binary to dist/acsw
+pnpm build            # compile standalone binary to dist/acsw
 ```
 
 ## Code conventions
