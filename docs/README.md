@@ -47,6 +47,22 @@ Read this when you want to:
 - Debug issues
 - Review security properties
 
+### [coding-standards.md](./coding-standards.md)
+
+**Coding patterns and conventions**
+
+Patterns enforced across the codebase:
+- Module boundaries (lib vs commands, shared helpers)
+- Config injection for testability
+- Import conventions and error handling tiers
+- File I/O, type, and testing patterns
+- Linting and formatting rules
+
+Read this when you want to:
+- Write new code that matches existing patterns
+- Add tests for a module
+- Understand why code is structured a certain way
+
 ### [improvements.md](./improvements.md)
 
 **Future enhancements and roadmap**

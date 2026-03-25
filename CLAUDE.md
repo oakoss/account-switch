@@ -19,9 +19,9 @@ Profiles are stored in `~/.acsw/` with one directory per profile containing `cre
 
 Shared file utilities (atomic JSON write, safe JSON reads with fallback/optional semantics) live in `src/lib/fs.ts`.
 
-The `env` command (`src/commands/env.ts`) provides shell hook integration for auto-switching profiles on `cd`. It walks up directories looking for `.acswrc` files (`{ "profile": "work" }`), validates the config structure, and switches via `switchProfile`. Since the hook runs on every `cd`, all errors are caught and surfaced via `ui.error` with `process.exitCode = 1` — never raw stack traces.
+The `env` command auto-switches profiles on `cd` by walking up directories for `.acswrc` files; pure lookup and validation logic lives in `src/lib/env.ts`, orchestration in `src/commands/env.ts`.
 
-Profile validation and repair logic lives in `src/lib/repair.ts`, accepting a `RepairConfig` (profilesDir, stateFile) for testability. The `repair` command (`src/commands/repair.ts`) is a thin display wrapper.
+Profile validation and repair logic lives in `src/lib/repair.ts`, accepting a `RepairConfig` for testability. The `repair` command is a thin display wrapper.
 
 ### Key invariants
 
@@ -48,17 +48,21 @@ pnpm build            # compile standalone binary to dist/acsw
 
 ## Code conventions
 
+See [docs/coding-standards.md](docs/coding-standards.md) for full patterns and examples.
+
+Key rules:
 - **Runtime:** Bun — use `Bun.file()`, `Bun.write()`, `Bun.spawn()` instead of Node equivalents
-- **Imports:** Use `node:` protocol for Node builtins (`node:fs`, `node:path`, `node:os`). Use `@lib/` and `@commands/` aliases for cross-directory imports; use `./` relative imports for same-directory siblings
-- **Error handling:** Never silently swallow errors. Return `null` only for "file doesn't exist". Throw on corruption, permission errors, or unexpected failures. Use ENOENT-specific catches, not bare `catch {}`.
-- **Temp file cleanup:** Every write that uses a `.tmp` file must clean it up in the catch block
+- **Imports:** `node:` protocol for builtins, `@lib/`/`@commands/` aliases for cross-directory, `./` for same-directory
+- **Error handling:** Never silently swallow errors. Use `isENOENT()` from `@lib/fs` for file-not-found checks. Clean up `.tmp` files in catch blocks.
 - **Spawn pattern:** Always read stdout/stderr before `await proc.exited` to avoid pipe deadlock
-- **CLI framework:** citty for arg parsing and subcommands; `@clack/prompts` for interactive UI. Output and prompts are abstracted behind `OutputAdapter`/`PromptAdapter` types in `src/lib/ui/types.ts` — the `@lib/ui` facade wires the clack implementation but can be swapped by changing one import
-- **Minimal runtime dependencies** — only citty and `@clack/prompts`; no chalk/inquirer/commander
+- **Lib purity:** No `process.exit()` or UI calls in `src/lib/` (exception: `ui/clack.ts` exits 130 on cancel). Commands own presentation and exit codes.
+- **UI abstraction:** Output via `OutputAdapter`/`PromptAdapter` in `src/lib/ui/types.ts`; the `@lib/ui` facade wires `@clack/prompts` but can be swapped
+- **Testability:** Lib functions accept optional config params with production defaults for DI in tests.
+- **Minimal deps** — only citty and `@clack/prompts`
 
 ## Testing
 
-Tests use `bun:test`. Mock provider factories (`createMockProvider`, `createFailingProvider`, `mockResolver`) are shared in `tests/helpers/mock-providers.ts` for testing profile operations without filesystem or Keychain access. Integration tests for exported functions are tracked in docs/improvements.md.
+Tests use `bun:test`. See [docs/coding-standards.md](docs/coding-standards.md) for test patterns (config injection, mock providers, temp dirs, assertion conventions). Test coverage tracked in [docs/improvements.md](docs/improvements.md).
 
 ## CI/CD
 
