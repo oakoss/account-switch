@@ -54,13 +54,11 @@ Replaced `guardClaudeRunning()` with `checkClaudeStatus()` which returns `'runni
 
 ### Decompose `profiles.ts`
 
-**Status:** Partially done
+**Status:** Done
 
-Shared file utilities (atomic JSON write, safe JSON reads) extracted to `src/lib/fs.ts`. `switchProfile()` flattened.
+Shared file utilities extracted to `src/lib/fs.ts`, profile paths to `src/lib/paths.ts`, snapshot I/O (`readProfileSnapshot`, `writeProfileSnapshot`) to `src/lib/snapshot.ts`. `profiles.ts` is now ~290 lines focused on profile operations. Snapshot functions are directly testable and importable.
 
-**Remaining:**
-- Snapshot read/write (`readProfileSnapshot`, `writeProfileSnapshot`) could move to `src/lib/snapshot.ts`. These are the core data persistence operations for profiles, currently buried as private helpers in a ~350-line file. Extracting them enables direct unit tests instead of testing only through `switchProfile`/`addOAuthProfile`.
-- State backup logic for outgoing profiles could be isolated for grouped switching
+**Remaining:** State backup logic for outgoing profiles could be isolated for grouped switching (future).
 
 ### Optimize `current` command
 

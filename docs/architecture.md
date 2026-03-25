@@ -26,6 +26,7 @@ src/
     ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads, isENOENT)
     ├── paths.ts                # Shared profilePaths() for profile directory layout
     ├── process.ts              # Process detection (is Claude running)
+    ├── snapshot.ts             # Profile snapshot read/write (credentials + identity)
     ├── repair.ts               # Profile validation and repair logic
     ├── credentials.ts          # CredentialStore factory (selects backend by platform)
     ├── credentials/
