@@ -28,6 +28,7 @@ acsw env --use-on-cd | source
 ```
 
 **Behavior:**
+
 - Shell hook invokes `acsw env --apply` on directory change
 - Walks up directories for nearest `.acswrc` (ancestor wins, like `.nvmrc`)
 - No-op if already on the target profile
@@ -39,11 +40,11 @@ acsw env --use-on-cd | source
 
 ## Alternatives considered
 
-| Option | Why not |
-|--------|---------|
-| Environment variable per project | Requires manual setup in each shell session; doesn't persist |
+| Option                                 | Why not                                                         |
+| -------------------------------------- | --------------------------------------------------------------- |
+| Environment variable per project       | Requires manual setup in each shell session; doesn't persist    |
 | Global config mapping dirs to profiles | Brittle when projects move; central config becomes a bottleneck |
-| Git hooks (post-checkout) | Only triggers on git operations, not `cd` |
+| Git hooks (post-checkout)              | Only triggers on git operations, not `cd`                       |
 
 ## Consequences
 

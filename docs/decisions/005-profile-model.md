@@ -6,6 +6,7 @@
 ## Context
 
 When planning multi-provider support, two models were considered:
+
 1. **Multi-provider profiles:** one profile contains multiple provider accounts (claude + gh + aws)
 2. **Single-provider profiles + groups:** one profile = one provider; groups compose them for switching
 
@@ -22,8 +23,8 @@ acsw group use work   # switches all three
 
 ## Alternatives considered
 
-| Option | Why not |
-|--------|---------|
+| Option                  | Why not                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Multi-provider profiles | Forces upfront provider decisions; atomic rollback across N providers is complex (if Claude switches but gh fails, what rolls back?); adding a provider later requires updating all profiles |
 
 ## Consequences

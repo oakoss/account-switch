@@ -20,12 +20,12 @@ The provider's `snapshot()`/`restore()` already abstract over credential shape. 
 
 ## Alternatives considered
 
-| Option | Why not |
-|--------|---------|
-| Generalize `CredentialStore<T>` | Requires propagating the generic through the provider; over-engineering for one additional credential type |
-| Discriminated union `OAuthCredentials \| ApiKeyCredentials` | Simpler but bleeds API key awareness into all credential backends |
-| Use `settings.local.json` | Project-scoped, less invasive, but doesn't survive directory changes |
-| Environment variable only | Requires user to source the output; doesn't integrate with shell hook |
+| Option                                                      | Why not                                                                                                    |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Generalize `CredentialStore<T>`                             | Requires propagating the generic through the provider; over-engineering for one additional credential type |
+| Discriminated union `OAuthCredentials \| ApiKeyCredentials` | Simpler but bleeds API key awareness into all credential backends                                          |
+| Use `settings.local.json`                                   | Project-scoped, less invasive, but doesn't survive directory changes                                       |
+| Environment variable only                                   | Requires user to source the output; doesn't integrate with shell hook                                      |
 
 The provider would read/write `ANTHROPIC_API_KEY` via the `env` field in `settings.json`.
 

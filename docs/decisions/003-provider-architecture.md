@@ -13,14 +13,14 @@ Use a **snapshot/restore** pattern. Each provider bundles credentials + identity
 
 ```typescript
 type Provider = {
-  readonly name: string
-  snapshot(): Promise<ProviderSnapshot | null>
-  restore(snapshot: ProviderSnapshot): Promise<void>
-  clear(): Promise<void>
-  displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo
-}
+  readonly name: string;
+  snapshot(): Promise<ProviderSnapshot | null>;
+  restore(snapshot: ProviderSnapshot): Promise<void>;
+  clear(): Promise<void>;
+  displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo;
+};
 
-type ProviderSnapshot = { credentials: unknown; identity: unknown }
+type ProviderSnapshot = { credentials: unknown; identity: unknown };
 ```
 
 `ProviderConfig` (platform, homedir, env) is injected for testability. Providers are registered in `src/lib/providers/registry.ts` with a caching resolver.
@@ -29,10 +29,10 @@ The profile layer (`profiles.ts`) snapshots the outgoing profile before restorin
 
 ## Alternatives considered
 
-| Option | Why not |
-|--------|---------|
-| Direct file manipulation per provider | No abstraction — every switch path needs provider-specific code |
-| Per-provider switch functions | No rollback semantics, no uniform interface for the profile layer |
+| Option                                     | Why not                                                                                                    |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Direct file manipulation per provider      | No abstraction — every switch path needs provider-specific code                                            |
+| Per-provider switch functions              | No rollback semantics, no uniform interface for the profile layer                                          |
 | Generic `Provider<T>` with typed snapshots | TypeScript variance on `restore()` parameter blocks this cleanly. Using `unknown` + boundary cast instead. |
 
 ## Consequences

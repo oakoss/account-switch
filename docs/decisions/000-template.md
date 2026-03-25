@@ -16,8 +16,8 @@ What is the change being proposed or adopted?
 What other options were evaluated, and why were they not chosen? A table works well for library/tool comparisons:
 
 | Option | Why not |
-|--------|---------|
-| ... | ... |
+| ------ | ------- |
+| ...    | ...     |
 
 ## Consequences
 

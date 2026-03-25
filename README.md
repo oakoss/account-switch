@@ -43,17 +43,17 @@ acsw
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `acsw` | Interactive profile picker |
-| `acsw add <name>` | Save current session as profile |
-| `acsw use <name>` | Switch to profile |
-| `acsw <name>` | Shortcut for `use` |
-| `acsw list` | List all profiles |
-| `acsw remove <name>` | Delete a profile |
-| `acsw current` | Show active profile |
-| `acsw repair` | Validate and fix profiles |
-| `acsw env` | Shell hook setup for auto-switching |
+| Command              | Description                         |
+| -------------------- | ----------------------------------- |
+| `acsw`               | Interactive profile picker          |
+| `acsw add <name>`    | Save current session as profile     |
+| `acsw use <name>`    | Switch to profile                   |
+| `acsw <name>`        | Shortcut for `use`                  |
+| `acsw list`          | List all profiles                   |
+| `acsw remove <name>` | Delete a profile                    |
+| `acsw current`       | Show active profile                 |
+| `acsw repair`        | Validate and fix profiles           |
+| `acsw env`           | Shell hook setup for auto-switching |
 
 ## Auto-switch on cd
 

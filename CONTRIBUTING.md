@@ -28,7 +28,7 @@ We use [conventional commits](https://www.conventionalcommits.org/) enforced by 
 
 ### Format
 
-```
+```text
 type(scope): description
 ```
 
@@ -40,7 +40,7 @@ type(scope): description
 
 ### Examples
 
-```
+```text
 feat(cli): add shell completions
 fix(credentials): handle expired tokens
 refactor: extract snapshot I/O to snapshot.ts
@@ -53,24 +53,24 @@ chore(deps): bump dependencies
 
 The `cz-git` prompt provides shortcuts for common commits:
 
-| Alias | Expands to |
-|-------|-----------|
-| `ci` | `ci: update workflows` |
-| `deps` | `chore(deps): bump dependencies` |
-| `docs` | `docs: update docs` |
+| Alias     | Expands to                           |
+| --------- | ------------------------------------ |
+| `ci`      | `ci: update workflows`               |
+| `deps`    | `chore(deps): bump dependencies`     |
+| `docs`    | `docs: update docs`                  |
 | `tooling` | `chore(tooling): update dev tooling` |
 
 ### Commit grouping
 
 Each commit should be one logical change. If you need "and" to connect two unrelated things in the commit message, split it.
 
-| Change type | Groups with |
-|------------|-------------|
-| New feature | Its tests, doc updates |
-| Refactor | Doc updates |
-| Bug fix | Its test, doc update |
-| Tests for existing code | Related doc changes |
-| New/reorganized docs | Related doc changes it triggers (CLAUDE.md, README.md) |
+| Change type             | Groups with                                            |
+| ----------------------- | ------------------------------------------------------ |
+| New feature             | Its tests, doc updates                                 |
+| Refactor                | Doc updates                                            |
+| Bug fix                 | Its test, doc update                                   |
+| Tests for existing code | Related doc changes                                    |
+| New/reorganized docs    | Related doc changes it triggers (CLAUDE.md, README.md) |
 
 ### When to write an ADR
 

@@ -16,11 +16,11 @@ You must manually log out and log back in each time you need to switch contexts.
 
 Several community solutions exist, but each has tradeoffs:
 
-| Tool | Approach | Tradeoff |
-|------|----------|----------|
-| [hoangvu12/acsw](https://github.com/hoangvu12/acsw) | npm dependency | Supply chain risk, npm package maintenance burden |
-| [rzkmak/acsw](https://github.com/rzkmak/acsw) | Swaps entire `settings.json` | Loses custom settings, editor configuration, installed extensions |
-| Keychain + shell script | Manual credential management | Security risk, complex setup, hard to maintain |
+| Tool                                                | Approach                     | Tradeoff                                                          |
+| --------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| [hoangvu12/acsw](https://github.com/hoangvu12/acsw) | npm dependency               | Supply chain risk, npm package maintenance burden                 |
+| [rzkmak/acsw](https://github.com/rzkmak/acsw)       | Swaps entire `settings.json` | Loses custom settings, editor configuration, installed extensions |
+| Keychain + shell script                             | Manual credential management | Security risk, complex setup, hard to maintain                    |
 
 ## Solution
 

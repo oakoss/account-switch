@@ -47,7 +47,7 @@ acsw add personal
 
 Output:
 
-```
+```text
   ● Found active session: alice@example.com
     Personal Workspace
 
@@ -69,7 +69,7 @@ acsw add work
 
 Output:
 
-```
+```text
   ● Found active session: alice@company.com
     Company Inc
 
@@ -109,7 +109,7 @@ acsw current
 
 Shows:
 
-```
+```text
   personal  Pro
   alice@example.com
 
@@ -140,18 +140,20 @@ acsw add hobby
 ```
 
 **Requirements:**
+
 - You must be logged into Claude Code
 - Profile name must be unique (can't already exist)
 - Uses pattern: `[a-zA-Z0-9_-]` (letters, numbers, hyphens, underscores)
 
 **What it saves:**
+
 - OAuth credentials (access token, refresh token, expiration)
 - Account metadata (email, organization, subscription tier)
 - Creation timestamp
 
 **Warning:** If Claude Code is running, you'll see:
 
-```
+```text
   ⚠ Claude Code appears to be running.
   Continue anyway? [y/N] _
 ```
@@ -168,12 +170,13 @@ acsw use personal
 ```
 
 **What happens:**
+
 1. Your current session is saved back to the active profile
 2. The target profile's credentials are loaded
 3. The active profile is updated
 4. You'll see a confirmation:
 
-```
+```text
   ✓ Switched to work  Team
     alice@company.com
     Company Inc
@@ -184,7 +187,7 @@ acsw use personal
 
 **Warning:** If Claude Code is running, you'll see:
 
-```
+```text
   ⚠ Claude Code appears to be running.
   ⚠ Switching profiles while Claude is active may cause errors.
   Continue anyway? [y/N] _
@@ -213,7 +216,7 @@ acsw list
 
 Output:
 
-```
+```text
   Profiles
 
   ▸ personal  Pro  alice@example.com
@@ -224,6 +227,7 @@ Output:
 ```
 
 **Indicators:**
+
 - `▸` (green arrow) = currently active profile
 - Subscription tier with color (Pro=cyan, Max=magenta, Free=dim, Team=blue, Enterprise=yellow)
 - Email address (dimmed)
@@ -240,13 +244,13 @@ acsw rm work
 
 Prompts for confirmation:
 
-```
+```text
   Delete profile "hobby"? [y/N] _
 ```
 
 If the profile is active, shows a warning:
 
-```
+```text
   Delete profile "work"? (currently active) [y/N] _
 ```
 
@@ -262,7 +266,7 @@ acsw current
 
 Output:
 
-```
+```text
   work  Team
   alice@company.com
   Company Inc
@@ -271,7 +275,7 @@ Output:
 
 Or if no profile is active:
 
-```
+```text
   ● No active profile
   Run 'acsw add <name>' to create one.
 
@@ -295,7 +299,7 @@ Checks:
 
 **Example output (all healthy):**
 
-```
+```text
   ● Checking profiles...
 
   ✓ All profiles healthy (3 checked)
@@ -304,7 +308,7 @@ Checks:
 
 **Example output (with issues):**
 
-```
+```text
   ● Checking profiles...
 
   [fixed] work: credentials.json had permissions 644, fixed to 600
@@ -316,9 +320,11 @@ Checks:
 ```
 
 **Automatic fixes:**
+
 - Permission errors on `credentials.json` → Fixed to mode 600
 
 **Manual attention required:**
+
 - Missing files → Re-run `acsw add <name>` or manually restore
 - Corrupted JSON → Delete profile with `acsw remove <name>`
 - Broken state reference → Delete `~/.acsw/state.json` and re-add profiles
@@ -346,6 +352,7 @@ acsw env --use-on-cd | source
 When you `cd` into a directory with `.acswrc`, the hook runs `acsw env --apply` which switches to the specified profile automatically. It walks up directories looking for `.acswrc` (nearest-ancestor wins, like `.nvmrc`).
 
 **Safety:**
+
 - Skips auto-switch if Claude Code is running
 - Skips if process detection fails (e.g., `pgrep` unavailable), with a warning
 - Skips in CI environments (`$CI` set)
@@ -370,6 +377,7 @@ acsw completions fish | source
 ```
 
 After setup, tab completion works for:
+
 - `acsw <TAB>` — subcommands and profile names
 - `acsw use <TAB>` — profile names
 - `acsw remove <TAB>` — profile names
@@ -419,7 +427,7 @@ acsw list
 
 Each profile shows its subscription tier:
 
-```
+```text
   ▸ personal  Pro        alice@example.com
     work      Team       alice@company.com
 ```
@@ -435,6 +443,7 @@ acsw repair
 This fixes permission issues. For missing or corrupted files:
 
 1. Remove the broken profile:
+
    ```bash
    acsw rm <name>
    ```
@@ -442,6 +451,7 @@ This fixes permission issues. For missing or corrupted files:
 2. Log back into Claude Code with that account
 
 3. Re-save the profile:
+
    ```bash
    acsw add <name>
    ```
@@ -534,6 +544,7 @@ Then use the exact name shown.
 **Cause:** Two windows loaded different cached versions before you switched profiles.
 
 **Fix:**
+
 1. Fully close all Claude Code windows
 2. Switch profile with `acsw use <name>`
 3. Reopen Claude Code

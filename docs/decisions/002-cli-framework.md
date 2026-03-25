@@ -15,12 +15,12 @@ Color formatting is handled inline in `src/lib/ui/format.ts` (~60 lines), respec
 
 ## Alternatives considered
 
-| Option | Why not |
-|--------|---------|
-| cleye | citty has 100x adoption and 0 deps |
-| commander / yargs | Heavy; designed for Node, not Bun-first |
-| inquirer | 2.5 MB+, many transitive deps |
-| picocolors | Existing format.ts covers the same ground in ~5 lines of NO_COLOR logic |
+| Option            | Why not                                                                 |
+| ----------------- | ----------------------------------------------------------------------- |
+| cleye             | citty has 100x adoption and 0 deps                                      |
+| commander / yargs | Heavy; designed for Node, not Bun-first                                 |
+| inquirer          | 2.5 MB+, many transitive deps                                           |
+| picocolors        | Existing format.ts covers the same ground in ~5 lines of NO_COLOR logic |
 
 ## Consequences
 

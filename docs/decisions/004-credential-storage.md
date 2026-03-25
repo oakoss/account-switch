@@ -13,13 +13,14 @@ Extract a `CredentialStore` interface with platform-specific backends:
 
 ```typescript
 type CredentialStore = {
-  read(): Promise<OAuthCredentials | null>
-  write(creds: OAuthCredentials): Promise<void>
-  delete(): Promise<void>
-}
+  read(): Promise<OAuthCredentials | null>;
+  write(creds: OAuthCredentials): Promise<void>;
+  delete(): Promise<void>;
+};
 ```
 
 Backends:
+
 - `keychain.ts` — macOS Keychain via `security` CLI
 - `file.ts` — file-based with atomic write and `chmod 600`
 
@@ -27,11 +28,11 @@ Backend selection is in `src/lib/credentials.ts` based on `ProviderConfig.platfo
 
 ## Alternatives considered
 
-| Option | Why not |
-|--------|---------|
-| Single backend (file only) | Loses macOS Keychain encryption; credentials at rest in plaintext |
-| keytar / @github/keytar | Archived or requires node-gyp build step (see [001](001-dependency-policy.md)) |
-| Inline platform checks in provider | Spreads platform logic across providers; blocks testing |
+| Option                             | Why not                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| Single backend (file only)         | Loses macOS Keychain encryption; credentials at rest in plaintext              |
+| keytar / @github/keytar            | Archived or requires node-gyp build step (see [001](001-dependency-policy.md)) |
+| Inline platform checks in provider | Spreads platform logic across providers; blocks testing                        |
 
 ## Consequences
 

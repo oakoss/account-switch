@@ -5,7 +5,6 @@
 ### Minor Changes
 
 - [`ee617f7`](https://github.com/oakoss/account-switch/commit/ee617f7f543d8d2cff9caca28c3af85abeb19f26) Thanks [@jbabin91](https://github.com/jbabin91)! - Migrate CLI to citty + @clack/prompts with swappable UI abstraction
-
   - **citty** handles arg parsing, subcommands, typed args, and auto-generated help text
   - **@clack/prompts** powers interactive select picker, confirm dialogs, and structured log output
   - UI abstraction layer (`OutputAdapter`/`PromptAdapter`) enables swapping implementations by changing one import
@@ -14,7 +13,6 @@
   - Ctrl+C during prompts exits cleanly with code 130
 
 - [`fb7ff0f`](https://github.com/oakoss/account-switch/commit/fb7ff0f7d22211c39751f02358610a26c8e2e2db) Thanks [@jbabin91](https://github.com/jbabin91)! - Add `acsw env` command for automatic profile switching on directory change
-
   - Shell hooks for zsh, bash, and fish via `acsw env --use-on-cd`
   - `.acswrc` config file with directory walk (nearest-ancestor wins, like `.nvmrc`)
   - Non-interactive Claude detection skips switch when Claude is running
@@ -26,7 +24,6 @@
 ### Minor Changes
 
 - [`6fb1a12`](https://github.com/oakoss/account-switch/commit/6fb1a12a4decee81888ee024289a7c1809153ff9) Thanks [@jbabin91](https://github.com/jbabin91)! - Add Provider abstraction and `--provider` flag for multi-provider support
-
   - Provider interface with snapshot/restore semantics for credential storage
   - `--provider` flag on `acsw add` (defaults to claude)
   - Profiles dispatch to the correct provider via stored metadata

@@ -13,14 +13,15 @@ Set a **50ms budget** for hot-path shell hook execution, with a **5-second hard 
 
 **Benchmarks** (macOS arm64, compiled via `bun build --compile`):
 
-| Scenario | Time | Memory |
-|----------|------|--------|
-| No `.acswrc` (fast path) | ~20ms | ~29 MB |
-| `.acswrc` present, switch attempt | ~40ms | ~32 MB |
+| Scenario                           | Time   | Memory |
+| ---------------------------------- | ------ | ------ |
+| No `.acswrc` (fast path)           | ~20ms  | ~29 MB |
+| `.acswrc` present, switch attempt  | ~40ms  | ~32 MB |
 | Cold start (first run after build) | ~680ms | ~29 MB |
-| Binary size | 58 MB | — |
+| Binary size                        | 58 MB  | —      |
 
 **Mitigations:**
+
 - 5-second timeout on `applyAcswrc()` — if anything hangs (keychain prompt, slow disk, stalled `pgrep`), the hook bails with a warning instead of blocking the shell
 - CI early-exit — `if (process.env.CI) return;` skips the hook entirely in CI
 - `checkClaudeStatus()` returning `'unknown'` (detection failed) skips auto-switch instead of proceeding
