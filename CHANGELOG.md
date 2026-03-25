@@ -1,10 +1,21 @@
 # Changelog
 
+## 0.4.0
+
+### Minor Changes
+
+- [`78dc934`](https://github.com/oakoss/account-switch/commit/78dc9341675f8499717fc31cb73fe54d970c2e39) Thanks [@jbabin91](https://github.com/jbabin91)! - Add `acsw completions` command for shell tab completion (bash, zsh, fish). Completes subcommand names and profile names dynamically.
+
+### Patch Changes
+
+- [`ea8b455`](https://github.com/oakoss/account-switch/commit/ea8b455398810ffd7ce3d40d1c40eb5073e1d023) Thanks [@jbabin91](https://github.com/jbabin91)! - Fix "Bun is not defined" crash when installed via npm/pnpm. Replace Bun-specific APIs with Node.js equivalents so the `--target node` build works in both runtimes.
+
 ## 0.3.0
 
 ### Minor Changes
 
 - [`ee617f7`](https://github.com/oakoss/account-switch/commit/ee617f7f543d8d2cff9caca28c3af85abeb19f26) Thanks [@jbabin91](https://github.com/jbabin91)! - Migrate CLI to citty + @clack/prompts with swappable UI abstraction
+
   - **citty** handles arg parsing, subcommands, typed args, and auto-generated help text
   - **@clack/prompts** powers interactive select picker, confirm dialogs, and structured log output
   - UI abstraction layer (`OutputAdapter`/`PromptAdapter`) enables swapping implementations by changing one import
