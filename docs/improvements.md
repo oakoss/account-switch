@@ -74,7 +74,7 @@ Dependent on Priority 2 architecture changes to unblock testable surfaces.
 
 **Status:** In progress
 
-118 tests across 10 files. Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
+141 tests across 12 files. Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
 - `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials (8 cases)
 - `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
 - `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
@@ -87,13 +87,13 @@ Dependent on Priority 2 architecture changes to unblock testable surfaces.
 - `paths.ts` — returns all 4 fields, accepts valid names, rejects dots/slashes/spaces/empty (6 cases)
 - `fs.ts` — `isENOENT` (7 cases), `readJsonOptional` (valid, missing, corrupt), `readJsonWithFallback` (valid, fallback, corrupt) (13 cases)
 - `providers/claude.ts` — snapshot read, snapshot null, restore write, restore null identity, displayInfo with/without identity, clear with credentials, clear when claude.json missing (8 cases via file backend)
+- `process.ts` — `isClaudeRunning` (no match, found, empty stdout, spawn throws), `checkClaudeStatus` (not-running, running, unknown) via `spyOn(Bun, 'spawn')` (7 cases)
+- `credentials/keychain.ts` — read JSON format, read hex format, read not found (stderr), read not found (exit 44), read unexpected exit, read unparseable JSON, read unparseable hex, write JSON format, write preserves hex format, write delete failure, write add failure, delete success, delete already gone, delete failure via `spyOn(Bun, 'spawn')` (14 cases)
 - Repair library — 14 tests via `RepairConfig` path injection
 - Mock providers — unit tests for `createMockProvider`, `createFailingProvider` (9 cases)
 
 **Untested modules:**
 - `env` command — `applyAcswrc` orchestration (already active no-op, switch success, switch failure exit code, Claude status gating, timeout). Still in the command file.
-- `process.ts` — `isClaudeRunning()` and `checkClaudeStatus()` have zero tests. Now testable since UI coupling was removed, but requires mocking `Bun.spawn` for `pgrep`.
-- `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
 - All command files (`add.ts`, `use.ts`, `list.ts`, `remove.ts`, `current.ts`, `repair.ts`) — no unit tests. Tested only through the lib-level integration tests.
 - `index.ts` — shortcut handler and interactive picker have zero tests.
 
