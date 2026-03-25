@@ -1,5 +1,5 @@
 import { createProviderConfig } from '@lib/constants';
-import { readState, listProfiles } from '@lib/profiles';
+import { getActiveProfile, readState } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
@@ -7,23 +7,20 @@ import { defineCommand } from 'citty';
 export default defineCommand({
   meta: { name: 'current', description: 'Show active profile' },
   async run() {
-    const state = await readState();
+    const resolve = createResolver(createProviderConfig());
+    const active = await getActiveProfile(resolve);
 
     ui.blank();
 
-    if (!state.active) {
-      ui.info('No active profile');
-      ui.hint("Run 'acsw add <name>' to create one.");
-      ui.blank();
-      return;
-    }
-
-    const resolve = createResolver(createProviderConfig());
-    const profiles = await listProfiles(resolve);
-    const active = profiles.find((p) => p.isActive);
-
     if (!active) {
-      ui.warn(`Active profile "${state.active}" not found on disk.`);
+      const state = await readState();
+      if (state.active) {
+        ui.warn(`Active profile "${state.active}" not found on disk.`);
+        ui.hint("Run 'acsw repair' to check state.");
+      } else {
+        ui.info('No active profile');
+        ui.hint("Run 'acsw add <name>' to create one.");
+      }
       ui.blank();
       return;
     }

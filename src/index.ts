@@ -82,8 +82,12 @@ const main = defineCommand({
       return;
     }
 
-    const { guardClaudeRunning } = await import('@lib/process');
-    await guardClaudeRunning();
+    const { guardClaudeRunning } = await import('@commands/guard-claude');
+    let declined = false;
+    await guardClaudeRunning(() => {
+      declined = true;
+    });
+    if (declined) return;
 
     const { switchProfile } = await import('@lib/profiles');
     const result = await switchProfile(selected, resolve);
@@ -115,7 +119,7 @@ if (firstArg && !firstArg.startsWith('-') && !KNOWN_COMMANDS.has(firstArg)) {
         ui.success(`Already on ${ui.bold(firstArg)}`);
         ui.blank();
       } else {
-        const { guardClaudeRunning } = await import('@lib/process');
+        const { guardClaudeRunning } = await import('@commands/guard-claude');
         ui.blank();
         await guardClaudeRunning();
 

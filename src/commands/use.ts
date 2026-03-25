@@ -1,9 +1,10 @@
 import { createProviderConfig } from '@lib/constants';
-import { guardClaudeRunning } from '@lib/process';
 import { profileExists, switchProfile, readState } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
+
+import { guardClaudeRunning } from './guard-claude';
 
 export default defineCommand({
   meta: { name: 'use', description: 'Switch to a profile' },

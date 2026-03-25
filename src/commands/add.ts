@@ -1,5 +1,4 @@
 import { createProviderConfig } from '@lib/constants';
-import { guardClaudeRunning } from '@lib/process';
 import {
   validateProfileName,
   profileExists,
@@ -8,6 +7,8 @@ import {
 import { createProvider, createDefaultProvider } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
+
+import { guardClaudeRunning } from './guard-claude';
 
 export default defineCommand({
   meta: { name: 'add', description: 'Save current session as a profile' },

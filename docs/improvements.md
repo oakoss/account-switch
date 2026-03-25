@@ -67,13 +67,9 @@ None of these can be tested without executing the command. The test coverage sec
 
 ### Decouple `guardClaudeRunning` from UI
 
-**Status:** Planned
+**Status:** Done
 
-`src/lib/process.ts` `guardClaudeRunning()` mixes process detection with UI interaction: it calls `ui.warn()`, `ui.confirm()`, and `process.exit()` directly. Untestable without mocking the UI module.
-
-Evidence the coupling is wrong: `env.ts` can't use `guardClaudeRunning()` (non-interactive context), so it calls `isClaudeRunning()` directly and handles the UI itself.
-
-**Fix:** `guardClaudeRunning()` should return a result (e.g., `'running' | 'unknown' | 'not-running'`) and let the caller decide how to present it. Or accept a callback/adapter for the confirm prompt. This removes the `process.exit()` call from a lib module and makes both the interactive and non-interactive paths use the same detection logic.
+Replaced `guardClaudeRunning()` with `checkClaudeStatus()` which returns `'running' | 'not-running' | 'unknown'`. No UI or `process.exit()` in lib code. Callers (`add.ts`, `use.ts`, `index.ts`) handle the prompt themselves. The `env.ts` non-interactive path continues to use `isClaudeRunning()` directly.
 
 ### Decompose `profiles.ts`
 
@@ -87,11 +83,9 @@ Shared file utilities (atomic JSON write, safe JSON reads) extracted to `src/lib
 
 ### Optimize `current` command
 
-**Status:** Planned
+**Status:** Done
 
-`src/commands/current.ts` calls `listProfiles()`, which reads every profile's metadata, credentials, and snapshot (O(N) file reads) just to find the active one. With 10 profiles, that's ~30 file reads when `readState()` + a single profile directory read would suffice.
-
-**Fix:** Add a `getActiveProfile(resolve, config)` function to `src/lib/profiles.ts` that reads state, then reads only the active profile's files. The `current` command and any future "am I on the right profile?" checks use this instead of the full list.
+Added `getActiveProfile(resolve, config)` to `src/lib/profiles.ts` that reads state + one profile instead of all N. `current.ts` uses it instead of `listProfiles()`.
 
 ## Priority 3: Test coverage
 
@@ -112,7 +106,7 @@ Integration tests use `ProfilesConfig` injection to redirect paths to a temp dir
 
 **Untested modules:**
 - `env` command — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `applyAcswrc` (already active no-op, switch success, switch failure exit code, isClaudeRunning gating), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell — blocked by all logic being private to the command file (see "Extract env.ts logic" above)
-- `process.ts` — `isClaudeRunning()` and `guardClaudeRunning()` have zero tests. `guardClaudeRunning` is hard to test due to direct `ui`/`process.exit` coupling.
+- `process.ts` — `isClaudeRunning()` and `checkClaudeStatus()` have zero tests. Now testable since UI coupling was removed.
 - `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
 - `providers/claude.ts` — zero tests. The provider integrates `CredentialStore` + `config.ts` but is only tested indirectly through profile integration tests with mock providers.
 - `config.ts` — `readOAuthAccount`/`writeOAuthAccount` exports are not tested directly. `config.test.ts` reimplements the JSON logic inline rather than calling the functions.

@@ -77,15 +77,15 @@ async function applyAcswrcInner(): Promise<void> {
   const state = await readState();
   if (state.active === targetProfile) return;
 
-  const { isClaudeRunning } = await import('@lib/process');
-  const running = await isClaudeRunning();
-  if (running === null) {
+  const { checkClaudeStatus } = await import('@lib/process');
+  const status = await checkClaudeStatus();
+  if (status === 'unknown') {
     ui.warn(
       'acsw: could not determine if Claude Code is running, skipping auto-switch',
     );
     return;
   }
-  if (running) {
+  if (status === 'running') {
     ui.warn('acsw: Claude Code is running, skipping auto-switch');
     return;
   }

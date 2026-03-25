@@ -229,6 +229,22 @@ export async function listProfiles(
   return profiles.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export async function getActiveProfile(
+  resolve: ProviderResolver,
+  config: ProfilesConfig = DEFAULT_CONFIG,
+): Promise<ProfileInfo | null> {
+  const state = await readState(config);
+  if (!state.active) return null;
+
+  const { meta: metaPath } = profilePaths(config.profilesDir, state.active);
+  const meta = await readJsonOptional<ProfileMeta>(metaPath);
+  if (!meta) return null;
+
+  const provider = resolve(meta.provider ?? 'claude');
+  const snapshot = await readProfileSnapshot(config, state.active);
+  return buildProfileInfo(state.active, meta, true, snapshot, provider);
+}
+
 export async function addOAuthProfile(
   name: string,
   provider: Provider,

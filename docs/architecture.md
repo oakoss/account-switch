@@ -14,7 +14,8 @@ src/
 │   ├── remove.ts               # Delete a profile
 │   ├── current.ts              # Show active profile
 │   ├── repair.ts               # Validate and fix profiles
-│   └── env.ts                  # Shell hook integration (auto-switch on cd)
+│   ├── env.ts                  # Shell hook integration (auto-switch on cd)
+│   └── guard-claude.ts         # Shared Claude-running guard (UI-layer helper)
 └── lib/
     ├── types.ts                # Type definitions
     ├── constants.ts            # Paths, regex, provider config factory
@@ -270,7 +271,7 @@ Exports: `success()`, `error()`, `warn()`, `info()`, `hint()`, `blank()`, `log()
 Process detection for safety checks:
 
 - `isClaudeRunning()` — Uses `pgrep -xi claude` (exact match, case-insensitive). Returns `boolean | null` (null when detection fails)
-- `guardClaudeRunning()` — Interactive wrapper that warns, prompts user to confirm, and exits with code 0 if declined
+- `checkClaudeStatus()` — Returns `ClaudeStatus` (`'running' | 'not-running' | 'unknown'`). No UI; callers decide how to present. Interactive commands use `guardClaudeRunning()` from `src/commands/guard-claude.ts`
 
 ### `repair.ts`
 

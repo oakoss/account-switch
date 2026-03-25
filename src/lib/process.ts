@@ -1,4 +1,4 @@
-import * as ui from '@lib/ui';
+export type ClaudeStatus = 'running' | 'not-running' | 'unknown';
 
 export async function isClaudeRunning(): Promise<boolean | null> {
   try {
@@ -16,16 +16,8 @@ export async function isClaudeRunning(): Promise<boolean | null> {
   }
 }
 
-export async function guardClaudeRunning(): Promise<void> {
+export async function checkClaudeStatus(): Promise<ClaudeStatus> {
   const running = await isClaudeRunning();
-  if (running === null) {
-    ui.warn('Could not determine if Claude Code is running.');
-    const ok = await ui.confirm('Continue anyway?');
-    if (!ok) process.exit(0);
-  } else if (running) {
-    ui.warn('Claude Code appears to be running.');
-    ui.warn('Switching profiles while Claude is active may cause errors.');
-    const ok = await ui.confirm('Continue anyway?');
-    if (!ok) process.exit(0);
-  }
+  if (running === null) return 'unknown';
+  return running ? 'running' : 'not-running';
 }
