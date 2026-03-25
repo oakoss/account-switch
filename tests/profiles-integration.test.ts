@@ -5,6 +5,7 @@ import {
   switchProfile,
   removeProfile,
   listProfiles,
+  getActiveProfile,
   readState,
 } from '@lib/profiles';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
@@ -373,5 +374,54 @@ describe('listProfiles', () => {
     const profiles = await listProfiles(resolve, config);
     expect(profiles[0].name).toBe('alpha');
     expect(profiles[1].name).toBe('zebra');
+  });
+});
+
+// -- getActiveProfile --
+
+describe('getActiveProfile', () => {
+  it('returns active profile with display info', async () => {
+    const resolve = mockResolver(createMockProvider(null));
+
+    await setupProfile(
+      'work',
+      { tier: 'max' },
+      { email: 'work@test.com', org: 'Acme' },
+    );
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'work' }));
+
+    const active = await getActiveProfile(resolve, config);
+
+    expect(active).not.toBeNull();
+    expect(active!.name).toBe('work');
+    expect(active!.isActive).toBe(true);
+    expect(active!.email).toBe('work@test.com');
+    expect(active!.organizationName).toBe('Acme');
+    expect(active!.subscriptionType).toBe('max');
+  });
+
+  it('returns null when no active profile is set', async () => {
+    const resolve = mockResolver(createMockProvider(null));
+
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
+
+    const active = await getActiveProfile(resolve, config);
+    expect(active).toBeNull();
+  });
+
+  it('returns null when active profile is missing from disk', async () => {
+    const resolve = mockResolver(createMockProvider(null));
+
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'deleted' }));
+
+    const active = await getActiveProfile(resolve, config);
+    expect(active).toBeNull();
+  });
+
+  it('returns null when state file does not exist', async () => {
+    const resolve = mockResolver(createMockProvider(null));
+
+    const active = await getActiveProfile(resolve, config);
+    expect(active).toBeNull();
   });
 });
