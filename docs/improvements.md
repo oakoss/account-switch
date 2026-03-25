@@ -85,22 +85,23 @@ Dependent on Priority 2 architecture changes to unblock testable surfaces.
 
 **Status:** In progress
 
-Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
+85 tests across 6 files. Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
 - `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials (8 cases)
 - `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
 - `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
 - `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
+- `getActiveProfile()` — active profile, no active set, missing from disk, no state file (4 cases)
 - `credentials/file.ts` — roundtrip, permissions, atomic write, parent dir creation, overwrite, null read, corrupted read, delete, null after delete, delete nonexistent (10 cases)
-- `config.ts` — tested indirectly (raw JSON manipulation), not the actual `readOAuthAccount`/`writeOAuthAccount` exports (3 cases)
+- `config.ts` — `readOAuthAccount` (present, absent, missing file, corrupt) and `writeOAuthAccount` (add, replace, delete, missing file, corrupt) tested directly (9 cases)
+- `lib/env.ts` — `findAcswrc` (same dir, parent, nearest ancestor, no match), `readAcswrc` (valid, empty, ENOENT, bad JSON, array, null, string, non-string profile), `detectShell` (zsh, bash, fish, full path, unknown, empty, no-arg fallback), `generateHook` (zsh dedup, bash alias, fish PWD, unsupported, no leading newline, trailing newline) (22 cases)
 - Repair library — 14 tests via `RepairConfig` path injection
+- Mock providers — unit tests for `createMockProvider`, `createFailingProvider` (9 cases)
 
 **Untested modules:**
-- `lib/env.ts` — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell. Now exported and testable.
 - `env` command — `applyAcswrc` orchestration (already active no-op, switch success, switch failure exit code, Claude status gating, timeout). Still in the command file.
 - `process.ts` — `isClaudeRunning()` and `checkClaudeStatus()` have zero tests. Now testable since UI coupling was removed.
 - `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
 - `providers/claude.ts` — zero tests. The provider integrates `CredentialStore` + `config.ts` but is only tested indirectly through profile integration tests with mock providers.
-- `config.ts` — `readOAuthAccount`/`writeOAuthAccount` exports are not tested directly. `config.test.ts` reimplements the JSON logic inline rather than calling the functions.
 - All command files (`add.ts`, `use.ts`, `list.ts`, `remove.ts`, `current.ts`, `repair.ts`) — no unit tests. Tested only through the lib-level integration tests.
 - `index.ts` — shortcut handler and interactive picker have zero tests.
 
