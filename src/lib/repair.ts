@@ -1,9 +1,10 @@
 import { readdir, chmod, stat } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import type { RepairConfig, RepairResult, RepairSummary } from './types';
 
 import { PROFILES_DIR, PROFILE_NAME_REGEX, STATE_FILE } from './constants';
+import { isENOENT } from './fs';
+import { profilePaths } from './paths';
 import { readState } from './profiles';
 
 async function fileExists(path: string): Promise<boolean> {
@@ -18,18 +19,6 @@ async function isValidJson(path: string): Promise<boolean> {
     if (error instanceof SyntaxError) return false;
     throw error;
   }
-}
-
-function profilePaths(profilesDir: string, name: string) {
-  if (!PROFILE_NAME_REGEX.test(name)) {
-    throw new Error(`Invalid profile name: "${name}"`);
-  }
-  const dir = join(profilesDir, name);
-  return {
-    credentials: join(dir, 'credentials.json'),
-    account: join(dir, 'account.json'),
-    meta: join(dir, 'profile.json'),
-  };
 }
 
 async function checkProfile(
@@ -121,13 +110,7 @@ export async function repairProfiles(
   try {
     dirEntries = await readdir(profilesDir);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'ENOENT'
-    )
-      return { results: [], checked: 0 };
+    if (isENOENT(error)) return { results: [], checked: 0 };
     throw error;
   }
 

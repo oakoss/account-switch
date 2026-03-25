@@ -1,4 +1,5 @@
 import { createProviderConfig } from '@lib/constants';
+import { isENOENT } from '@lib/fs';
 import { readState, switchProfile } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
@@ -25,7 +26,7 @@ async function readAcswrc(path: string): Promise<AcswrcConfig | null> {
     raw = await Bun.file(path).json();
   } catch (error) {
     // Race: file may be deleted between findAcswrc's exists() check and this read
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    if (isENOENT(error)) {
       return null;
     }
     const msg = error instanceof Error ? error.message : String(error);

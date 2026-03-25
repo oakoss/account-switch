@@ -20,7 +20,8 @@ src/
     ├── constants.ts            # Paths, regex, provider config factory
     ├── profiles.ts             # Profile CRUD operations
     ├── config.ts               # OAuth account in ~/.claude.json
-    ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads)
+    ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads, isENOENT)
+    ├── paths.ts                # Shared profilePaths() for profile directory layout
     ├── process.ts              # Process detection (is Claude running)
     ├── repair.ts               # Profile validation and repair logic
     ├── credentials.ts          # CredentialStore factory (selects backend by platform)
@@ -246,6 +247,7 @@ Claude Code configuration file (`~/.claude.json`) management:
 
 Shared file utilities:
 
+- `isENOENT(error)` — Type-safe ENOENT check for catch blocks
 - `readJsonOptional(path)` — Returns `null` for missing files, throws on corruption
 - `readJsonWithFallback(path, fallback)` — Returns fallback for missing files
 - `writeJson(path, data, mode?)` — Atomic write (temp file + rename)

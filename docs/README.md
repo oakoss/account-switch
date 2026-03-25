@@ -52,7 +52,7 @@ Read this when you want to:
 **Future enhancements and roadmap**
 
 Roadmap organized by priority:
-- Quick wins (ENOENT helper, dynamic import cleanup, double-snapshot fix)
+- Quick wins (done: ENOENT helper, dynamic import cleanup, double-snapshot fix, profilePaths unification)
 - Testability and architecture (switch consolidation, env.ts extraction, process decoupling)
 - Test coverage targets
 - Platform support (`@napi-rs/keyring`, Windows, Linux)

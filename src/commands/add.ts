@@ -56,7 +56,7 @@ export default defineCommand({
       }
     }
 
-    await addOAuthProfile(args.name, provider);
+    await addOAuthProfile(args.name, provider, undefined, snapshot);
 
     ui.blank();
     ui.success(`Profile ${ui.bold(args.name)} saved`);

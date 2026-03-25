@@ -1,5 +1,15 @@
+import { renameSync, unlinkSync } from 'node:fs';
 import { chmod, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+
+export function isENOENT(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === 'ENOENT'
+  );
+}
 
 export async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
@@ -39,11 +49,9 @@ export async function writeJson(
   try {
     await Bun.write(tmpPath, JSON.stringify(data, null, 2));
     if (mode) await chmod(tmpPath, mode);
-    const { renameSync } = await import('node:fs');
     renameSync(tmpPath, path);
   } catch (error) {
     try {
-      const { unlinkSync } = await import('node:fs');
       unlinkSync(tmpPath);
     } catch {
       /* cleanup best-effort */

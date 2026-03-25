@@ -1,6 +1,7 @@
 import type { OAuthCredentials } from '@lib/types';
 
-import { writeJsonSecure } from '@lib/fs';
+import { isENOENT, writeJsonSecure } from '@lib/fs';
+import { unlink } from 'node:fs/promises';
 
 import type { CredentialStore } from './types';
 
@@ -24,17 +25,10 @@ export function createFileStore(path: string): CredentialStore {
     },
 
     async delete(): Promise<void> {
-      const { unlink } = await import('node:fs/promises');
       try {
         await unlink(path);
       } catch (error: unknown) {
-        if (
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'ENOENT'
-        )
-          return;
+        if (isENOENT(error)) return;
         throw error;
       }
     },

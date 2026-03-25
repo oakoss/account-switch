@@ -1,5 +1,4 @@
-import { readdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, rm, unlink } from 'node:fs/promises';
 
 import type {
   ProfileState,
@@ -14,28 +13,17 @@ import type {
 import { PROFILES_DIR, STATE_FILE, PROFILE_NAME_REGEX } from './constants';
 import {
   ensureDir,
+  isENOENT,
   readJsonOptional,
   readJsonWithFallback,
   writeJson,
 } from './fs';
+import { profilePaths } from './paths';
 
 const DEFAULT_CONFIG: ProfilesConfig = {
   profilesDir: PROFILES_DIR,
   stateFile: STATE_FILE,
 };
-
-function profilePaths(config: ProfilesConfig, name: string) {
-  if (!PROFILE_NAME_REGEX.test(name)) {
-    throw new Error(`Invalid profile name: "${name}"`);
-  }
-  const dir = join(config.profilesDir, name);
-  return {
-    dir,
-    credentials: join(dir, 'credentials.json'),
-    account: join(dir, 'account.json'),
-    meta: join(dir, 'profile.json'),
-  };
-}
 
 const DEFAULT_META: Omit<ProfileMeta, 'name'> = {
   type: 'oauth',
@@ -78,7 +66,7 @@ export async function profileExists(
   name: string,
   config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<boolean> {
-  const { meta } = profilePaths(config, name);
+  const { meta } = profilePaths(config.profilesDir, name);
   return Bun.file(meta).exists();
 }
 
@@ -88,7 +76,7 @@ async function readProfileSnapshot(
   config: ProfilesConfig,
   name: string,
 ): Promise<ProviderSnapshot | null> {
-  const { credentials, account } = profilePaths(config, name);
+  const { credentials, account } = profilePaths(config.profilesDir, name);
   const creds = await readJsonOptional(credentials);
   if (!creds) return null;
   const identity = await readJsonOptional(account);
@@ -100,22 +88,15 @@ async function writeProfileSnapshot(
   name: string,
   snapshot: ProviderSnapshot,
 ): Promise<void> {
-  const { credentials, account } = profilePaths(config, name);
+  const { credentials, account } = profilePaths(config.profilesDir, name);
   await writeJson(credentials, snapshot.credentials, 0o600);
   if (snapshot.identity) {
     await writeJson(account, snapshot.identity);
   } else {
-    const { unlink } = await import('node:fs/promises');
     try {
       await unlink(account);
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        error.code === 'ENOENT'
-      )
-        return;
+      if (isENOENT(error)) return;
       throw error;
     }
   }
@@ -163,7 +144,10 @@ async function snapshotOutgoingProfile(
   if (!state.active || state.active === targetName) return;
   if (!(await profileExists(state.active, config))) return;
 
-  const { meta: outgoingMetaPath } = profilePaths(config, state.active);
+  const { meta: outgoingMetaPath } = profilePaths(
+    config.profilesDir,
+    state.active,
+  );
   const outgoingMeta = await readJsonWithFallback<ProfileMeta>(
     outgoingMetaPath,
     fallbackMeta(state.active),
@@ -221,13 +205,7 @@ export async function listProfiles(
   try {
     dirEntries = await readdir(config.profilesDir);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'ENOENT'
-    )
-      return [];
+    if (isENOENT(error)) return [];
     throw error;
   }
 
@@ -237,7 +215,7 @@ export async function listProfiles(
     const name = String(entryName);
     if (!PROFILE_NAME_REGEX.test(name)) continue;
 
-    const { meta: metaPath } = profilePaths(config, name);
+    const { meta: metaPath } = profilePaths(config.profilesDir, name);
     const meta = await readJsonOptional<ProfileMeta>(metaPath);
     if (!meta) continue;
 
@@ -255,11 +233,12 @@ export async function addOAuthProfile(
   name: string,
   provider: Provider,
   config: ProfilesConfig = DEFAULT_CONFIG,
+  existingSnapshot?: ProviderSnapshot,
 ): Promise<void> {
-  const { dir, meta: metaPath } = profilePaths(config, name);
+  const { dir, meta: metaPath } = profilePaths(config.profilesDir, name);
   await ensureDir(dir);
 
-  const snapshot = await provider.snapshot();
+  const snapshot = existingSnapshot ?? (await provider.snapshot());
   if (!snapshot) {
     throw new Error("No OAuth credentials found. Log in with 'claude' first.");
   }
@@ -294,7 +273,7 @@ export async function switchProfile(
   }
 
   const state = await readState(config);
-  const { meta: metaPath } = profilePaths(config, name);
+  const { meta: metaPath } = profilePaths(config.profilesDir, name);
   const targetMeta = await readJsonWithFallback<ProfileMeta>(
     metaPath,
     fallbackMeta(name),
@@ -340,7 +319,7 @@ export async function removeProfile(
     throw new Error(`Profile "${name}" does not exist`);
   }
 
-  const { dir, meta: metaPath } = profilePaths(config, name);
+  const { dir, meta: metaPath } = profilePaths(config.profilesDir, name);
   const meta = await readJsonOptional<ProfileMeta>(metaPath);
   const provider = resolve(meta?.provider ?? 'claude');
   const state = await readState(config);

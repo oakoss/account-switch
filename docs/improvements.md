@@ -8,46 +8,27 @@ Low-effort changes that improve code quality immediately.
 
 ### Extract ENOENT helper
 
-**Status:** Planned
+**Status:** Done
 
-The pattern `error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'` is copy-pasted in 4 locations:
-
-1. `src/lib/profiles.ts` `writeProfileSnapshot` (lines 111–118)
-2. `src/lib/profiles.ts` `listProfiles` (lines 224–231)
-3. `src/lib/repair.ts` `repairProfiles` (lines 124–130)
-4. `src/lib/credentials/file.ts` `delete` (lines 30–36)
-
-A 5th ENOENT check exists in `src/commands/env.ts:28` using a slightly different guard (`instanceof Error`). An `isENOENT` helper would unify all 5.
-
-**Fix:** Add `isENOENT(error: unknown): boolean` to `src/lib/fs.ts` (~3 lines). All call sites become one-liners.
+Added `isENOENT(error: unknown): boolean` to `src/lib/fs.ts`. Replaced all 5 call sites (`profiles.ts` ×2, `repair.ts`, `credentials/file.ts`, `env.ts`) with one-liners.
 
 ### Clean up unnecessary dynamic imports
 
-**Status:** Planned
+**Status:** Done
 
-Files dynamically import modules that could be top-level:
-
-- `src/lib/profiles.ts:108` — `await import('node:fs/promises')` for `unlink`, but `readdir` and `rm` are already imported from `node:fs/promises` at line 1. Same module, no reason to be dynamic.
-- `src/lib/credentials/file.ts:27` — `await import('node:fs/promises')` for `unlink`. Same pattern as profiles.ts.
-- `src/lib/fs.ts:42,46` — `await import('node:fs')` for `renameSync`/`unlinkSync`. This is `node:fs` (sync APIs), a different module from the existing `node:fs/promises` import, but still a standard builtin that should be top-level.
-
-Likely remnants of an earlier lazy-loading strategy. Behavioral no-op, but confusing for readers. Convert to top-level imports.
+Converted 4 dynamic imports to top-level: `unlink` in `profiles.ts` and `credentials/file.ts` (from `node:fs/promises`), `renameSync`/`unlinkSync` in `fs.ts` (from `node:fs`).
 
 ### Eliminate double snapshot in `add` command
 
-**Status:** Planned
+**Status:** Done
 
-`src/commands/add.ts` calls `provider.snapshot()` at line 44 to validate credentials exist, then `addOAuthProfile()` at line 59 calls `provider.snapshot()` again internally. On macOS, each snapshot spawns a `security` CLI subprocess for the keychain read plus a `Bun.file().json()` call for `~/.claude.json`. The `add` command does 2 keychain subprocess spawns for what should be 1.
-
-**Fix:** Either pass the pre-fetched snapshot into `addOAuthProfile()` as an optional parameter, or restructure so validation and persistence are a single path.
+`addOAuthProfile()` now accepts an optional `existingSnapshot` parameter. `add.ts` passes the snapshot it already fetched for validation, avoiding a redundant keychain read on macOS.
 
 ### Unify `profilePaths` and remove dead code
 
-**Status:** Partially done
+**Status:** Done
 
-Dead code removed: `profileDir()`, `profileCredentialsFile()`, `profileAccountFile()`, `profileMetaFile()` deleted from `constants.ts` (never imported by any module).
-
-**Remaining:** `profiles.ts` and `repair.ts` still have their own local `profilePaths()` functions. `profiles.ts` returns 4 fields (`dir`, `credentials`, `account`, `meta`) while `repair.ts` returns 3 (no `dir`). Could extract a shared version into `src/lib/paths.ts`, but the duplication is minor (~10 lines each).
+Extracted shared `profilePaths()` to `src/lib/paths.ts`. Both `profiles.ts` and `repair.ts` now import from it. Returns all 4 fields (`dir`, `credentials`, `account`, `meta`). Dead code (`profileDir()`, etc.) was removed in an earlier pass.
 
 ## Priority 2: Testability & architecture
 
