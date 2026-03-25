@@ -19,7 +19,7 @@ Start here if you're new to `acsw`. Learn about:
 **Complete command reference and walkthrough**
 
 Reference guide for all commands:
-- `add`, `use`, `list`, `remove`, `current`, `repair`
+- `add`, `use`, `list`, `remove`, `current`, `repair`, `env`
 - Interactive picker
 - Common workflows and troubleshooting
 - Security notes
@@ -51,20 +51,17 @@ Read this when you want to:
 
 **Future enhancements and roadmap**
 
-Planned features and improvements:
-- API key profile support (currently OAuth only)
-- Shell completions (bash, zsh, fish)
-- npm publishing and pre-built binaries
-- Backup/restore and migration tools
-- Subscription tracking and credential refresh
-- Windows Credential Manager support
-- Performance optimizations
-- Testing and CI/CD
+Roadmap organized by priority:
+- Quick wins (ENOENT helper, dynamic import cleanup, double-snapshot fix)
+- Testability and architecture (switch consolidation, env.ts extraction, process decoupling)
+- Test coverage targets
+- Platform support (`@napi-rs/keyring`, Windows, Linux)
+- Distribution (pre-built binaries, Homebrew formula)
+- Features (API key profiles, shell completions, multi-provider)
 
 Read this if you want to:
-- See what's planned
+- See what's planned and in what order
 - Propose a feature
-- Understand the vision
 - Contribute to development
 
 ## Quick navigation

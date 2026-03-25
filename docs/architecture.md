@@ -6,22 +6,36 @@ This document describes the internal structure and data flow of `acsw`.
 
 ```
 src/
-├── index.ts                    # CLI entry point, command routing
+├── index.ts                    # CLI entry point, command routing, shortcut handler
 ├── commands/
 │   ├── add.ts                  # Save current session as profile
 │   ├── use.ts                  # Switch to a profile
 │   ├── list.ts                 # List all profiles
 │   ├── remove.ts               # Delete a profile
 │   ├── current.ts              # Show active profile
-│   └── repair.ts               # Validate and fix profiles
+│   ├── repair.ts               # Validate and fix profiles
+│   └── env.ts                  # Shell hook integration (auto-switch on cd)
 └── lib/
     ├── types.ts                # Type definitions
-    ├── constants.ts            # Paths, regex, service names
+    ├── constants.ts            # Paths, regex, provider config factory
     ├── profiles.ts             # Profile CRUD operations
-    ├── credentials.ts          # Credential storage (Keychain/file)
-    ├── config.ts               # OAuth account metadata
+    ├── config.ts               # OAuth account in ~/.claude.json
+    ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads)
     ├── process.ts              # Process detection (is Claude running)
-    └── ui.ts                   # Terminal UI (colors, prompts, formatting)
+    ├── repair.ts               # Profile validation and repair logic
+    ├── credentials.ts          # CredentialStore factory (selects backend by platform)
+    ├── credentials/
+    │   ├── types.ts            # CredentialStore interface
+    │   ├── keychain.ts         # macOS Keychain backend (via security CLI)
+    │   └── file.ts             # File-based backend (~/.claude/.credentials.json)
+    ├── providers/
+    │   ├── claude.ts           # Claude provider (snapshot/restore credentials + identity)
+    │   └── registry.ts         # Provider registry and resolver factory
+    ├── ui.ts                   # Re-exports from ui/ (facade module)
+    └── ui/
+        ├── types.ts            # OutputAdapter and PromptAdapter interfaces
+        ├── clack.ts            # @clack/prompts implementation of UI adapters
+        └── format.ts           # Color formatting with NO_COLOR/FORCE_COLOR support
 ```
 
 ## Data storage
@@ -42,7 +56,7 @@ Claude Code stores authentication data in two locations:
 ~/.acsw/
 ├── state.json                  # { active: "work" }
 ├── personal/
-│   ├── profile.json            # Metadata: name, createdAt, lastUsed
+│   ├── profile.json            # Metadata: name, type, provider, createdAt, lastUsed
 │   ├── credentials.json        # OAuth tokens (mode 600)
 │   └── account.json            # User metadata: email, organization
 ├── work/
@@ -88,12 +102,13 @@ Tracks the active profile:
 
 #### `profile.json` (per profile)
 
-Immutable metadata about a profile:
+Per-profile metadata:
 
 ```json
 {
   "name": "work",
   "type": "oauth",
+  "provider": "claude",
   "createdAt": "2026-03-20T15:30:00.000Z",
   "lastUsed": "2026-03-23T09:15:00.000Z"
 }
@@ -194,47 +209,72 @@ Highest-level profile management:
 - `removeProfile(name)` — Delete a profile
 - `validateProfileName(name)` — Check name against `[a-zA-Z0-9_-]+` regex
 
-### `credentials.ts`
+### `credentials.ts` + `credentials/`
 
-Credential storage abstraction:
-
-- `readCredentials()` — Get credentials from Keychain (macOS) or file
-- `writeCredentials(creds)` — Store credentials securely
-- `deleteCredentials()` — Remove credentials (rarely used)
-- `copyCredentials(from, to)` — Used internally for testing
-
-Platform detection:
+Credential storage abstraction using the `CredentialStore` interface:
 
 ```typescript
-const IS_MACOS = process.platform === "darwin"
-
-// On macOS: Use Keychain
-// On Linux/Windows: Use ~/.claude/.credentials.json
+type CredentialStore = {
+  read(): Promise<OAuthCredentials | null>
+  write(creds: OAuthCredentials): Promise<void>
+  delete(): Promise<void>
+}
 ```
+
+`credentials.ts` exports `createCredentialStore(config)` which selects the backend based on `ProviderConfig.platform`:
+- **macOS (`darwin`):** `keychain.ts` — shells out to `security` CLI for Keychain access
+- **Other platforms:** `file.ts` — reads/writes `~/.claude/.credentials.json` with mode 600
+
+### `providers/claude.ts`
+
+The Claude provider implements the `Provider` interface (snapshot/restore design). It bundles two things into each snapshot:
+1. OAuth credentials via `CredentialStore`
+2. `oauthAccount` field from `~/.claude.json` via `config.ts`
+
+### `providers/registry.ts`
+
+Provider factory and resolver. `createResolver(config)` returns a cached `ProviderResolver` function that maps provider names to `Provider` instances.
 
 ### `config.ts`
 
 Claude Code configuration file (`~/.claude.json`) management:
 
 - `readOAuthAccount()` — Extract oauthAccount field
-- `writeOAuthAccount(account)` — Update oauthAccount field
+- `writeOAuthAccount(account)` — Update oauthAccount field (preserves all other keys)
 
-Preserves all other fields in `~/.claude.json` (settings, plugins, etc.).
+### `fs.ts`
 
-### `ui.ts`
+Shared file utilities:
 
-Terminal UI primitives:
+- `readJsonOptional(path)` — Returns `null` for missing files, throws on corruption
+- `readJsonWithFallback(path, fallback)` — Returns fallback for missing files
+- `writeJson(path, data, mode?)` — Atomic write (temp file + rename)
+- `writeJsonSecure(path, data)` — Atomic write with mode 600 and parent dir creation
+- `ensureDir(path)` — Recursive mkdir
 
-- Colors: `success()`, `error()`, `warn()`, `info()`, `hint()`
-- Formatting: `bold()`, `dim()`, `green()`, `cyan()`, `yellow()`, `magenta()`, `blue()`
-- Input: `confirm()`, `prompt()`, `pickNumber()`
-- Subscriptions: `formatSubscription(tier)` — Color-codes "Pro", "Max", "Free", etc.
+### `ui.ts` + `ui/`
+
+Terminal UI with two abstraction layers:
+
+- `ui/types.ts` — `OutputAdapter` and `PromptAdapter` interfaces
+- `ui/clack.ts` — Implementation using `@clack/prompts`
+- `ui/format.ts` — Color functions respecting `NO_COLOR`/`FORCE_COLOR`
+- `ui.ts` — Facade that re-exports everything as a flat API
+
+Exports: `success()`, `error()`, `warn()`, `info()`, `hint()`, `blank()`, `log()`, `confirm()`, `select()`, `bold()`, `dim()`, color functions, `formatSubscription()`
 
 ### `process.ts`
 
 Process detection for safety checks:
 
-- `isClaudeRunning()` — Uses `pgrep -xi claude` (exact match, case-insensitive). Returns `boolean | null` (null when check can't run)
+- `isClaudeRunning()` — Uses `pgrep -xi claude` (exact match, case-insensitive). Returns `boolean | null` (null when detection fails)
+- `guardClaudeRunning()` — Interactive wrapper that warns, prompts user to confirm, and exits with code 0 if declined
+
+### `repair.ts`
+
+Profile validation and repair logic:
+
+- `repairProfiles(config?)` — Scans all profiles, checks file integrity, fixes permissions. Returns `RepairSummary` with checked count and issue list. Accepts `RepairConfig` for testability.
 
 ### `types.ts`
 
@@ -242,10 +282,17 @@ TypeScript type definitions:
 
 - `OAuthCredentials` — OAuth token structure
 - `OAuthAccount` — User account metadata
-- `ProfileMeta` — Profile immutable metadata
+- `ProfileMeta` — Profile metadata (name, type, provider, timestamps)
 - `ProfileState` — Active profile tracking
 - `ProfileInfo` — Combined profile info for UI display
-- `RepairResult` — Repair command issue tracking
+- `ProfilesConfig` — Injected paths for testability (profilesDir, stateFile)
+- `Provider` — Snapshot/restore interface for credential providers
+- `ProviderSnapshot` — Opaque credential + identity bundle
+- `ProviderConfig` — Platform, homedir, env injection for providers
+- `ProviderResolver` — Factory function mapping provider names to instances
+- `ProfileType` — `'oauth' | 'api-key'`
+- `ProviderDisplayInfo` — Return type of `Provider.displayInfo()` (label, context, tier)
+- `RepairResult` / `RepairSummary` / `RepairConfig` — Repair command types
 
 ## Command flow
 
@@ -253,9 +300,11 @@ TypeScript type definitions:
 
 ```
 1. List all profiles with listProfiles()
-2. Display numbered menu
-3. Prompt for selection (1-N)
-4. Call use(selected)
+2. Display @clack/prompts select menu
+3. User picks a profile
+4. Check if already active (return early if so)
+5. Guard claude running
+6. Call switchProfile(selected)
 ```
 
 ### Add command
@@ -310,6 +359,35 @@ TypeScript type definitions:
 1. Read state.json to get active profile name
 2. List profiles to get metadata
 3. Display active profile info with colors
+```
+
+### Env command
+
+Two modes: hook generation (`--use-on-cd`) and hook execution (`--apply`).
+
+**`acsw env --use-on-cd`** (runs once during shell init):
+
+```
+1. Detect shell from $SHELL (or --shell flag)
+2. Output shell-specific hook code (zsh/bash/fish)
+   └─ Hook calls `acsw env --apply` on every cd
+```
+
+**`acsw env --apply`** (runs on every cd):
+
+```
+1. Early exit if $CI is set
+2. Walk up directories from cwd looking for .acswrc
+   └─ Return if none found
+3. Parse and validate .acswrc JSON
+   └─ Warn and exit on malformed config
+4. Compare .acswrc profile to current active profile
+   └─ No-op if already on correct profile
+5. Check if Claude Code is running
+   └─ Skip auto-switch if running or detection failed
+6. Call switchProfile() to apply
+7. Entire flow wrapped in 5-second timeout
+   └─ On timeout: warn and set exitCode = 1
 ```
 
 ## Error handling

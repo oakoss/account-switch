@@ -1,307 +1,148 @@
 # Future Improvements
 
-Planned enhancements for `account-switch` (`acsw`). Organized by priority.
+Planned enhancements for `account-switch` (`acsw`). Organized by priority; work top-down.
 
-## Investigation needed
+## Priority 1: Quick wins
 
-Items that need a spike or benchmark before committing to a plan.
+Low-effort changes that improve code quality immediately.
 
-### Startup time benchmarking
-
-**Status:** Done (2026-03-24)
-
-Benchmarked `time acsw env --apply` on macOS arm64 (compiled binary via `bun build --compile`):
-
-| Scenario | Time | Memory |
-|----------|------|--------|
-| No `.acswrc` (fast path) | ~20ms | ~29 MB |
-| `.acswrc` present, switch attempt | ~40ms | ~32 MB |
-| Cold start (first run after build) | ~680ms | ~29 MB |
-| Binary size | 58 MB | — |
-
-Both hot paths are under the 50ms target (fnm targets <5ms, but it's Rust). The 680ms cold start only happens once after install or system restart.
-
-**Mitigations added:**
-- 5-second timeout on `applyAcswrc()` — if anything hangs (keychain prompt, slow disk, stalled `pgrep`), the hook bails with a warning instead of blocking the shell
-- CI early-exit — `if (process.env.CI) return;` skips the hook entirely in CI
-
-**Binary size note:** 58 MB is the Bun runtime overhead. Every Bun CLI pays this cost. Not reducible without switching runtimes.
-
-### `@napi-rs/keyring` + `bun build --compile` compatibility
-
-**Status:** Done (2026-03-24) — compatible
-
-Spiked with a minimal test: write/read/delete via `@napi-rs/keyring`, then `bun build --compile` and run the compiled binary.
-
-**Results:**
-- Interpreted (`bun run`): all operations pass
-- Compiled (`bun build --compile`): all operations pass
-- Cross-verified via `security find-generic-password` — the compiled binary writes to the real macOS Keychain
-- Binary size impact: +1 MB (58 → 59 MB) — negligible
-- API note: `getPassword()` returns `null` after delete instead of throwing — the `CredentialStore` interface already returns `null` for missing credentials, so this aligns
-
-**Conclusion:** The `@napi-rs/keyring` migration in the "Platform support" section is unblocked.
-
-### Competitor analysis
-
-**Status:** Investigate
-
-Evaluate competing tools for UX gaps and ideas worth stealing:
-- `rzkmak/acsw` — referenced in the API key design section; writes to `settings.json`
-- Any other Claude Code account-switching tools on npm/GitHub
-- How `gh auth switch`, `aws sso login --profile`, and `gcloud config configurations activate` handle multi-account — these are the UX benchmarks
-
-**Action:** Review their CLIs for features, UX patterns, and edge cases we haven't considered. Focus on: first-run experience, error recovery, and multi-provider switching patterns.
-
-### Man pages
+### Extract ENOENT helper
 
 **Status:** Planned
 
-Homebrew users expect `man acsw`. Tools like `marked-man` or `ronn-ng` generate man pages from markdown.
+The pattern `error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'` is copy-pasted in 4 locations:
 
-**Approach:** Write a single `acsw.1.md` source file covering all subcommands. Generate the man page during `pnpm build` and include it in the Homebrew formula. ~1 page of markdown, no runtime dependency.
+1. `src/lib/profiles.ts` `writeProfileSnapshot` (lines 111–118)
+2. `src/lib/profiles.ts` `listProfiles` (lines 224–231)
+3. `src/lib/repair.ts` `repairProfiles` (lines 124–130)
+4. `src/lib/credentials/file.ts` `delete` (lines 30–36)
 
-### Rust rewrite
+A 5th ENOENT check exists in `src/commands/env.ts:28` using a slightly different guard (`instanceof Error`). An `isENOENT` helper would unify all 5.
 
-**Status:** Revisit later
+**Fix:** Add `isENOENT(error: unknown): boolean` to `src/lib/fs.ts` (~3 lines). All call sites become one-liners.
 
-The compiled Bun binary is 58 MB (vs ~3-5 MB for a Rust binary) with a 680ms cold start (vs ~1-2ms in Rust). A Rust rewrite would also give native `keyring-rs` access without the NAPI bridge question.
-
-**Trade-offs:**
-- Full rewrite of ~1,800 lines of TypeScript
-- Lose `@clack/prompts` — Rust alternatives (`dialoguer`, `inquire`) are good but different
-- Slower iteration speed during development
-- Narrower contributor pool
-
-**When to revisit:** If binary size becomes distribution friction (Homebrew downloads, CI caching), if the `@napi-rs/keyring` spike fails, or if the hook path gets heavy enough that cold start matters. Not justified while the current numbers are within targets and the feature roadmap is incomplete.
-
-## CLI framework
-
-### Adopt citty + @clack/prompts
-
-**Status:** Done
-
-Migrated from manual arg parsing and raw ANSI UI to citty (subcommands, typed args, auto help) and `@clack/prompts` (interactive select, confirm). Output and prompts are abstracted behind `OutputAdapter`/`PromptAdapter` in `src/lib/ui/types.ts`.
-
-### `NO_COLOR` / `FORCE_COLOR` support
-
-**Status:** Done
-
-`src/lib/ui/format.ts` respects [`NO_COLOR`](https://no-color.org/) and `FORCE_COLOR` environment variables. Colors are enabled when `NO_COLOR` is absent and either `FORCE_COLOR` is set or stdout is a TTY. All formatting functions pass through unmodified when disabled. No library needed.
-
-## Multi-provider support
-
-### Provider abstraction
-
-**Status:** Done (foundation) — next: add providers
-
-The `Provider` interface uses a snapshot/restore design. Each provider bundles credentials + identity into an opaque snapshot for atomic switching with rollback:
-
-```typescript
-type Provider = {
-  readonly name: string
-  snapshot(): Promise<ProviderSnapshot | null>
-  restore(snapshot: ProviderSnapshot): Promise<void>
-  clear(): Promise<void>
-  displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo
-}
-```
-
-`ProviderConfig` (platform, homedir, env) is injected for testability. The Claude provider is in `src/lib/providers/claude.ts`, with a registry in `src/lib/providers/registry.ts`.
-
-**Remaining work:**
-- Generics on `Provider` blocked by TypeScript variance on `restore()` parameter — using `ClaudeSnapshot` type alias with single boundary cast instead
-- Add concrete providers (GitHub CLI, AWS CLI, etc.)
-- Auto-registration or declarative provider map in registry to avoid manual edits when adding providers
-
-**Target providers:**
-
-| Provider | Credential location | Identity location |
-|----------|---|---|
-| Claude Code | macOS Keychain / `~/.claude/.credentials.json` | `~/.claude.json` → `oauthAccount` |
-| GitHub CLI | `~/.config/gh/hosts.yml` | Same file (token + user) |
-| AWS CLI | `~/.aws/credentials` | `~/.aws/config` (named profiles) |
-| gcloud | `~/.config/gcloud/` | Application default credentials |
-| Vercel CLI | `~/.local/share/com.vercel.cli/` | Auth token |
-| Fly.io | `~/.fly/config.yml` | Auth token |
-| Wrangler (Cloudflare) | `~/.wrangler/config/default.toml` | OAuth token |
-
-**Usage:**
-
-```bash
-acsw add personal --provider claude
-acsw add work-aws --provider aws
-acsw use personal    # switches Claude Code
-acsw use work-aws    # switches AWS CLI
-```
-
-### Grouped switching
-
-**Status:** Future
-
-Switch multiple providers at once for a project context:
-
-```bash
-acsw group create work --profiles claude:work,aws:work-prod,gh:work
-acsw group use work   # switches all three
-```
-
-## Auto-switch on cd (fnm-style)
-
-### Shell hook integration
-
-**Status:** Done (single-provider)
-
-The `acsw env` command provides shell integration for auto-switching profiles on `cd`, like fnm does for Node.js versions.
-
-**Project config** (`.acswrc` in project root):
-
-```json
-{
-  "profile": "work"
-}
-```
-
-**Shell setup:**
-
-```bash
-# Add to ~/.zshrc / ~/.bashrc
-eval "$(acsw env --use-on-cd)"
-
-# Fish: ~/.config/fish/conf.d/acsw.fish
-acsw env --use-on-cd | source
-```
-
-**Behavior:**
-- On `cd`, the hook runs `acsw env --apply`
-- Walks up directories looking for `.acswrc` (nearest-ancestor wins, like `.nvmrc`)
-- Switches profile if it differs from current, no-op if already active
-- Validates `.acswrc` structure and warns on malformed config
-- Checks for running Claude sessions before switching
-- Sets `process.exitCode = 1` on failure so callers can detect errors
-
-**Remaining work:**
-- Multi-provider support in `.acswrc` (e.g., `{ "claude": "work", "aws": "work-prod" }`) — blocked on adding more providers
-
-**Done:**
-- CI early-exit: `if (process.env.CI) return;` at the top of `applyAcswrcInner()` skips the hook in CI
-- 5-second timeout on `applyAcswrc()` to prevent shell hangs
-- `isClaudeRunning()` returning `null` (detection failed) now skips auto-switch instead of proceeding
-
-## Profile management
-
-### API key profile support
+### Clean up unnecessary dynamic imports
 
 **Status:** Planned
 
-Currently only OAuth subscriptions (Pro/Max/Team/Enterprise) are supported. Claude Code also supports direct API key auth, which is stored differently:
+Files dynamically import modules that could be top-level:
 
-- OAuth: Keychain (macOS) or `~/.claude/.credentials.json` (Linux) + `oauthAccount` in `~/.claude.json`
-- API key: `ANTHROPIC_API_KEY` in `~/.claude/settings.json` → `env` field
+- `src/lib/profiles.ts:108` — `await import('node:fs/promises')` for `unlink`, but `readdir` and `rm` are already imported from `node:fs/promises` at line 1. Same module, no reason to be dynamic.
+- `src/lib/credentials/file.ts:27` — `await import('node:fs/promises')` for `unlink`. Same pattern as profiles.ts.
+- `src/lib/fs.ts:42,46` — `await import('node:fs')` for `renameSync`/`unlinkSync`. This is `node:fs` (sync APIs), a different module from the existing `node:fs/promises` import, but still a standard builtin that should be top-level.
 
-**Design decision:** Switching API key profiles requires writing to `settings.json`, which the OAuth flow deliberately avoids. Options:
-1. Write to `settings.json` → `env.ANTHROPIC_API_KEY` (what rzkmak/acsw does)
-2. Use `settings.local.json` instead (project-scoped, less invasive)
-3. Set via environment variable only (print `export` command for user to run)
+Likely remnants of an earlier lazy-loading strategy. Behavioral no-op, but confusing for readers. Convert to top-level imports.
 
-**Usage:**
-
-```bash
-acsw add work-api --api-key
-# prompts for key securely (no echo)
-
-acsw add work-api --api-key "sk-ant-..."
-# or pass inline
-```
-
-**Switching to an API key profile:**
-- Clear OAuth credentials (keychain/file) and `oauthAccount`
-- Set `ANTHROPIC_API_KEY` in the appropriate location
-
-**Switching from API key back to OAuth:**
-- Remove `ANTHROPIC_API_KEY` from settings
-- Restore OAuth credentials and `oauthAccount`
-
-### Profile aliases
+### Eliminate double snapshot in `add` command
 
 **Status:** Planned
 
-Short names for profiles:
+`src/commands/add.ts` calls `provider.snapshot()` at line 44 to validate credentials exist, then `addOAuthProfile()` at line 59 calls `provider.snapshot()` again internally. On macOS, each snapshot spawns a `security` CLI subprocess for the keychain read plus a `Bun.file().json()` call for `~/.claude.json`. The `add` command does 2 keychain subprocess spawns for what should be 1.
 
-```bash
-acsw add work --alias w,wrk
-acsw w   # same as: acsw use work
-```
+**Fix:** Either pass the pre-fetched snapshot into `addOAuthProfile()` as an optional parameter, or restructure so validation and persistence are a single path.
 
-### Profile metadata
+### Unify `profilePaths` and remove dead code
 
-**Status:** Future
+**Status:** Partially done
 
-Optional description and tags:
+Dead code removed: `profileDir()`, `profileCredentialsFile()`, `profileAccountFile()`, `profileMetaFile()` deleted from `constants.ts` (never imported by any module).
 
-```typescript
-type ProfileMeta = {
-  name: string
-  type: ProfileType
-  provider: string
-  createdAt: string
-  lastUsed: string | null
-  description?: string
-  tags?: string[]
-  alias?: string[]
-}
-```
+**Remaining:** `profiles.ts` and `repair.ts` still have their own local `profilePaths()` functions. `profiles.ts` returns 4 fields (`dir`, `credentials`, `account`, `meta`) while `repair.ts` returns 3 (no `dir`). Could extract a shared version into `src/lib/paths.ts`, but the duplication is minor (~10 lines each).
 
-## Command enhancements
+## Priority 2: Testability & architecture
 
-### Shell completions
+Structural changes that unblock testing and reduce duplication.
+
+### Consolidate switch-and-display logic
 
 **Status:** Planned
 
-```bash
-source <(acsw completions zsh)
-acsw use <TAB>  # completes profile names
-```
+"Check active → guard claude → switch → format result → display" lives in four separate locations:
 
-Support bash, zsh, and fish.
+1. `src/index.ts` interactive picker (lines 46–97)
+2. `src/index.ts` shortcut handler (lines 100–138) — nearly duplicates `use.ts`
+3. `src/commands/use.ts`
+4. `src/commands/env.ts` `applyAcswrc()` — a non-interactive variant
 
-**Approach:** Hand-written `completions` subcommand that emits static shell scripts. This is the standard pattern used by `gh`, `kubectl`, `rustup`, and `docker`. The scripts complete subcommand names statically and call `acsw list --names` (a new flag returning bare profile names) for dynamic profile name completion. ~50–100 lines of code, zero dependencies.
+Each reimplements the same flow with minor variations (interactive vs non-interactive, shortcut vs subcommand). The shortcut handler (#2) is the worst offender: it bypasses citty entirely, implements its own error handling with `try/catch` + `process.exit(1)`, calls `readState()` separately to check active status, and duplicates all the display formatting from `use.ts`. A shared `performSwitch(name, resolve, opts)` returning `ProfileInfo` would collapse the duplication and make it testable in one place.
 
-**Why not a library:** All evaluated options have significant drawbacks:
-- `tabtab` — abandoned (last release 2018), 2.5 MB, pulls in `inquirer`
-- `omelette` — zero deps and lightweight, but its dynamic model re-invokes the binary on every tab press, causing noticeable latency with compiled Bun binaries
-- `citty` has no built-in completion support
-- `cliffy` has completions but is a full framework replacement — disproportionate
+The paths have already diverged in visible ways: `use.ts` displays `organizationName`, while the shortcut handler and interactive picker silently omit it. Currently none of the four switch paths have any test coverage.
 
-**External option:** Contribute an autocomplete spec to `withfig/autocomplete` (now Amazon Q Developer CLI) as a separate zero-cost effort. Benefits macOS users who have it installed, no impact on the tool itself.
+### Extract `env.ts` logic into testable lib module
 
-### Interactive creation wizard
+**Status:** Planned
 
-**Status:** Future
+`src/commands/env.ts` contains 5 distinct concerns, all private to the citty command:
 
-```bash
-acsw add --interactive
-```
+1. **`findAcswrc`** — directory walk (ancestor search for `.acswrc`)
+2. **`readAcswrc`** — JSON parsing with validation (structure, types, ENOENT race)
+3. **`applyAcswrc`** — config application (reads state, checks claude running, switches profile)
+4. **`detectShell`** — shell detection from `$SHELL`
+5. **`generateHook`** — shell hook code generation (zsh/bash/fish)
 
-Guided prompts for name, provider, description, aliases.
+None of these can be tested without executing the command. The test coverage section below lists ~15 test cases that are all blocked by this structure.
 
-### Health check / status
+**Fix:** Move `findAcswrc`, `readAcswrc`, `detectShell`, and `generateHook` to `src/lib/env.ts` as exported functions. Keep `applyAcswrc` either in the command (thin orchestration) or split it into a testable core that accepts dependencies. The command file becomes a thin shell over the lib.
 
-**Status:** Future
+### Decouple `guardClaudeRunning` from UI
 
-```bash
-acsw status
-```
+**Status:** Planned
 
-Shows all profiles with expiration warnings, sync state, and health indicators.
+`src/lib/process.ts` `guardClaudeRunning()` mixes process detection with UI interaction: it calls `ui.warn()`, `ui.confirm()`, and `process.exit()` directly. Untestable without mocking the UI module.
 
-### Credential expiration tracking
+Evidence the coupling is wrong: `env.ts` can't use `guardClaudeRunning()` (non-interactive context), so it calls `isClaudeRunning()` directly and handles the UI itself.
 
-**Status:** Future
+**Fix:** `guardClaudeRunning()` should return a result (e.g., `'running' | 'unknown' | 'not-running'`) and let the caller decide how to present it. Or accept a callback/adapter for the confirm prompt. This removes the `process.exit()` call from a lib module and makes both the interactive and non-interactive paths use the same detection logic.
 
-Check `expiresAt` on every command, warn when tokens are near expiry.
+### Decompose `profiles.ts`
 
-## Platform support
+**Status:** Partially done
+
+Shared file utilities (atomic JSON write, safe JSON reads) extracted to `src/lib/fs.ts`. `switchProfile()` flattened.
+
+**Remaining:**
+- Snapshot read/write (`readProfileSnapshot`, `writeProfileSnapshot`) could move to `src/lib/snapshot.ts`. These are the core data persistence operations for profiles, currently buried as private helpers in a ~350-line file. Extracting them enables direct unit tests instead of testing only through `switchProfile`/`addOAuthProfile`.
+- State backup logic for outgoing profiles could be isolated for grouped switching
+
+### Optimize `current` command
+
+**Status:** Planned
+
+`src/commands/current.ts` calls `listProfiles()`, which reads every profile's metadata, credentials, and snapshot (O(N) file reads) just to find the active one. With 10 profiles, that's ~30 file reads when `readState()` + a single profile directory read would suffice.
+
+**Fix:** Add a `getActiveProfile(resolve, config)` function to `src/lib/profiles.ts` that reads state, then reads only the active profile's files. The `current` command and any future "am I on the right profile?" checks use this instead of the full list.
+
+## Priority 3: Test coverage
+
+Dependent on Priority 2 architecture changes to unblock testable surfaces.
+
+### Test coverage
+
+**Status:** In progress
+
+Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
+- `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials (8 cases)
+- `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
+- `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
+- `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
+- `credentials/file.ts` — roundtrip, permissions, atomic write, parent dir creation, overwrite, null read, corrupted read, delete, null after delete, delete nonexistent (10 cases)
+- `config.ts` — tested indirectly (raw JSON manipulation), not the actual `readOAuthAccount`/`writeOAuthAccount` exports (3 cases)
+- Repair library — 14 tests via `RepairConfig` path injection
+
+**Untested modules:**
+- `env` command — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `applyAcswrc` (already active no-op, switch success, switch failure exit code, isClaudeRunning gating), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell — blocked by all logic being private to the command file (see "Extract env.ts logic" above)
+- `process.ts` — `isClaudeRunning()` and `guardClaudeRunning()` have zero tests. `guardClaudeRunning` is hard to test due to direct `ui`/`process.exit` coupling.
+- `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
+- `providers/claude.ts` — zero tests. The provider integrates `CredentialStore` + `config.ts` but is only tested indirectly through profile integration tests with mock providers.
+- `config.ts` — `readOAuthAccount`/`writeOAuthAccount` exports are not tested directly. `config.test.ts` reimplements the JSON logic inline rather than calling the functions.
+- All command files (`add.ts`, `use.ts`, `list.ts`, `remove.ts`, `current.ts`, `repair.ts`) — no unit tests. Tested only through the lib-level integration tests.
+- `index.ts` — shortcut handler and interactive picker have zero tests.
+
+Target: 80%+ coverage on `src/lib/`.
+
+## Priority 4: Platform support
+
+Cross-platform work that unblocks Windows and Linux.
 
 ### Adopt `@napi-rs/keyring` for cross-platform credential storage
 
@@ -335,6 +176,24 @@ Replace the current platform-specific credential backends with `@napi-rs/keyring
 
 **Migration:** Replace `createKeychainStore()` internals. The `CredentialStore` interface (`read`, `write`, `delete`) maps directly to the `@napi-rs/keyring` API. A new `keyring.ts` backend would be ~30 lines.
 
+### Extract process detection interface
+
+**Status:** Planned — needed for Windows support
+
+`src/lib/process.ts` `isClaudeRunning()` shells out to `pgrep`, which doesn't exist on Windows. When adding Windows support (alongside `@napi-rs/keyring`), process detection needs a platform-specific backend, same pattern as `CredentialStore`.
+
+```typescript
+type ProcessDetector = {
+  isRunning(name: string): Promise<boolean | null>;
+};
+```
+
+**Backends:**
+- `pgrep` — macOS/Linux (current approach)
+- `tasklist` or `Get-Process` — Windows
+
+Selected based on `ProviderConfig.platform`, injected into the env hook and `guardClaudeRunning`. Keeps the rest of the codebase unaware of platform-specific process detection.
+
 ### Windows Credential Manager
 
 **Status:** Planned — unblocked by `@napi-rs/keyring` (see above)
@@ -347,7 +206,9 @@ Encrypted by OS, consistent with the macOS Keychain approach. No additional code
 
 Uses `libsecret` / D-Bus Secret Service API via the Rust `keyring-rs` crate. Requires a running D-Bus session (standard on desktop Linux, absent on headless servers). The file-based backend remains as fallback.
 
-## Distribution
+## Priority 5: Distribution
+
+Getting the tool into users' hands.
 
 ### Pre-built binaries
 
@@ -368,7 +229,7 @@ Attach to GitHub releases automatically. This is a prerequisite for the Homebrew
 Sign and notarize macOS binaries so direct GitHub release downloads don't trigger Gatekeeper warnings. Not required for Homebrew (it strips quarantine automatically), but needed for direct downloads.
 
 **Prerequisites:**
-1. Enroll in the Apple Developer Program ($99/year) at [developer.apple.com](https://developer.apple.com) — a personal account works fine, doesn't need to match the `oakoss` GitHub org
+1. Enroll in the Apple Developer Program ($99/year) at [developer.apple.com](https://developer.apple.com). A personal account works; doesn't need to match the `oakoss` GitHub org
 2. Create a "Developer ID Application" certificate in the Apple Developer portal
 3. Export the certificate as a `.p12` file
 4. Generate an app-specific password at [appleid.apple.com](https://appleid.apple.com) (Account → Sign-In and Security → App-Specific Passwords)
@@ -395,7 +256,7 @@ Only applies to macOS binaries. Linux and Windows binaries skip this step.
 
 **Status:** Planned — blocked on pre-built binaries
 
-The tap repo (`oakoss/homebrew-tap`) is created. No dependency on the tool itself — the formula is a Ruby file in the tap repo that downloads the prebuilt binary from a GitHub release.
+The tap repo (`oakoss/homebrew-tap`) is created. The formula is a Ruby file in the tap repo that downloads the prebuilt binary from a GitHub release; no dependency on the tool itself.
 
 ```bash
 brew tap oakoss/tap
@@ -407,6 +268,348 @@ brew install oakoss/tap/acsw
 - Attach binaries to GitHub releases via the release workflow
 - Add a formula to `oakoss/homebrew-tap` that downloads the correct binary per platform/arch and computes SHA256
 - Automate formula SHA updates on new releases (e.g., via `brew bump-formula-pr` or a GitHub Action that updates the tap repo)
+
+## Priority 6: Features
+
+New user-facing capabilities.
+
+### API key profile support
+
+**Status:** Planned
+
+Currently only OAuth subscriptions (Pro/Max/Team/Enterprise) are supported. Claude Code also supports direct API key auth, which is stored differently:
+
+- OAuth: Keychain (macOS) or `~/.claude/.credentials.json` (Linux) + `oauthAccount` in `~/.claude.json`
+- API key: `ANTHROPIC_API_KEY` in `~/.claude/settings.json` → `env` field
+
+**Design decision:** Switching API key profiles requires writing to `settings.json`, which the OAuth flow deliberately avoids. Options:
+1. Write to `settings.json` → `env.ANTHROPIC_API_KEY` (what rzkmak/acsw does)
+2. Use `settings.local.json` instead (project-scoped, less invasive)
+3. Set via environment variable only (print `export` command for user to run)
+
+**Usage:**
+
+```bash
+acsw add work-api --api-key
+# prompts for key securely (no echo)
+
+acsw add work-api --api-key "sk-ant-..."
+# or pass inline
+```
+
+**Switching to an API key profile:**
+- Clear OAuth credentials (keychain/file) and `oauthAccount`
+- Set `ANTHROPIC_API_KEY` in the appropriate location
+
+**Switching from API key back to OAuth:**
+- Remove `ANTHROPIC_API_KEY` from settings
+- Restore OAuth credentials and `oauthAccount`
+
+### Shell completions
+
+**Status:** Planned
+
+```bash
+source <(acsw completions zsh)
+acsw use <TAB>  # completes profile names
+```
+
+Support bash, zsh, and fish.
+
+**Approach:** Hand-written `completions` subcommand that emits static shell scripts. This is the standard pattern used by `gh`, `kubectl`, `rustup`, and `docker`. The scripts complete subcommand names statically and call `acsw list --names` (a new flag returning bare profile names) for dynamic profile name completion. ~50–100 lines of code, zero dependencies.
+
+**Why not a library:** All evaluated options have significant drawbacks:
+- `tabtab` — abandoned (last release 2018), 2.5 MB, pulls in `inquirer`
+- `omelette` — zero deps and lightweight, but its dynamic model re-invokes the binary on every tab press, causing noticeable latency with compiled Bun binaries
+- `citty` has no built-in completion support
+- `cliffy` has completions but is a full framework replacement — disproportionate
+
+**External option:** Contribute an autocomplete spec to `withfig/autocomplete` (now Amazon Q Developer CLI) as a separate zero-cost effort. Benefits macOS users who have it installed, no impact on the tool itself.
+
+### Profile aliases
+
+**Status:** Planned
+
+Short names for profiles:
+
+```bash
+acsw add work --alias w,wrk
+acsw w   # same as: acsw use work
+```
+
+### Multi-provider: add concrete providers
+
+**Status:** Planned — blocked on provider abstraction done
+
+**Remaining work:**
+- Generics on `Provider` blocked by TypeScript variance on `restore()` parameter; using `ClaudeSnapshot` type alias with single boundary cast instead. Alternative: tag snapshots with `{ provider: string; credentials: unknown; identity: unknown }` so `restore()` can validate at runtime that a snapshot matches its provider, preventing mismatched snapshot/provider pairs
+- Add concrete providers (GitHub CLI, AWS CLI, etc.)
+- Auto-registration or declarative provider map in registry to avoid manual edits when adding providers
+
+**Target providers:**
+
+| Provider | Credential location | Identity location |
+|----------|---|---|
+| Claude Code | macOS Keychain / `~/.claude/.credentials.json` | `~/.claude.json` → `oauthAccount` |
+| GitHub CLI | `~/.config/gh/hosts.yml` | Same file (token + user) |
+| AWS CLI | `~/.aws/credentials` | `~/.aws/config` (named profiles) |
+| gcloud | `~/.config/gcloud/` | Application default credentials |
+| Vercel CLI | `~/.local/share/com.vercel.cli/` | Auth token |
+| Fly.io | `~/.fly/config.yml` | Auth token |
+| Wrangler (Cloudflare) | `~/.wrangler/config/default.toml` | OAuth token |
+
+**Usage:**
+
+```bash
+acsw add personal --provider claude
+acsw add work-aws --provider aws
+acsw use personal    # switches Claude Code
+acsw use work-aws    # switches AWS CLI
+```
+
+## Priority 7: Future
+
+Nice-to-haves. Not blocked, just lower priority than everything above.
+
+### Grouped switching
+
+**Status:** Future
+
+Switch multiple providers at once for a project context:
+
+```bash
+acsw group create work --profiles claude:work,aws:work-prod,gh:work
+acsw group use work   # switches all three
+```
+
+### Profile metadata
+
+**Status:** Future
+
+Optional description and tags:
+
+```typescript
+type ProfileMeta = {
+  name: string
+  type: ProfileType
+  provider: string
+  createdAt: string
+  lastUsed: string | null
+  description?: string
+  tags?: string[]
+  alias?: string[]
+}
+```
+
+### Interactive creation wizard
+
+**Status:** Future
+
+```bash
+acsw add --interactive
+```
+
+Guided prompts for name, provider, description, aliases.
+
+### Health check / status
+
+**Status:** Future
+
+```bash
+acsw status
+```
+
+Shows all profiles with expiration warnings, sync state, and health indicators.
+
+### Credential expiration tracking
+
+**Status:** Future
+
+Check `expiresAt` on every command, warn when tokens are near expiry.
+
+### Backup and restore
+
+**Status:** Future
+
+```bash
+acsw backup ~/backup.tar.gz
+acsw restore ~/backup.tar.gz
+```
+
+Exports metadata and account info (not credentials for security).
+
+### Encryption at rest
+
+**Status:** Future
+
+AES-256-GCM encryption for credential files on Linux/Windows (in addition to mode 600).
+
+### Audit logging
+
+**Status:** Nice-to-have
+
+Append-only log of profile switches for compliance/debugging.
+
+```text
+2026-03-23T15:30:00Z - Switch: personal -> work (claude)
+2026-03-23T16:45:00Z - Switch: work -> personal (claude)
+```
+
+### Man pages
+
+**Status:** Planned
+
+Homebrew users expect `man acsw`. Tools like `marked-man` or `ronn-ng` generate man pages from markdown.
+
+**Approach:** Write a single `acsw.1.md` source file covering all subcommands. Generate the man page during `pnpm build` and include it in the Homebrew formula. ~1 page of markdown, no runtime dependency.
+
+## Investigate / revisit later
+
+Items that need a spike or benchmark, or aren't justified yet.
+
+### Competitor analysis
+
+**Status:** Investigate
+
+Evaluate competing tools for UX gaps and ideas worth stealing:
+- `rzkmak/acsw` — referenced in the API key design section; writes to `settings.json`
+- Any other Claude Code account-switching tools on npm/GitHub
+- How `gh auth switch`, `aws sso login --profile`, and `gcloud config configurations activate` handle multi-account — these are the UX benchmarks
+
+**Action:** Review their CLIs for features, UX patterns, and edge cases we haven't considered. Focus on: first-run experience, error recovery, and multi-provider switching patterns.
+
+### Rust rewrite
+
+**Status:** Revisit later
+
+The compiled Bun binary is 58 MB (vs ~3-5 MB for a Rust binary) with a 680ms cold start (vs ~1-2ms in Rust). A Rust rewrite would also give native `keyring-rs` access without the NAPI bridge question.
+
+**Trade-offs:**
+- Full rewrite of ~1,900 lines of TypeScript
+- Lose `@clack/prompts` — Rust alternatives (`dialoguer`, `inquire`) are good but different
+- Slower iteration speed during development
+- Narrower contributor pool
+
+**When to revisit:** If binary size becomes distribution friction (Homebrew downloads, CI caching), if the `@napi-rs/keyring` spike fails, or if the hook path gets heavy enough that cold start matters. Not justified while the current numbers are within targets and the feature roadmap is incomplete.
+
+## Done
+
+Completed items kept for reference and decision context.
+
+### Startup time benchmarking (2026-03-24)
+
+Benchmarked `time acsw env --apply` on macOS arm64 (compiled binary via `bun build --compile`):
+
+| Scenario | Time | Memory |
+|----------|------|--------|
+| No `.acswrc` (fast path) | ~20ms | ~29 MB |
+| `.acswrc` present, switch attempt | ~40ms | ~32 MB |
+| Cold start (first run after build) | ~680ms | ~29 MB |
+| Binary size | 58 MB | — |
+
+Both hot paths are under the 50ms target (fnm targets <5ms, but it's Rust). The 680ms cold start only happens once after install or system restart.
+
+**Mitigations added:**
+- 5-second timeout on `applyAcswrc()` — if anything hangs (keychain prompt, slow disk, stalled `pgrep`), the hook bails with a warning instead of blocking the shell
+- CI early-exit — `if (process.env.CI) return;` skips the hook entirely in CI
+
+**Binary size note:** 58 MB is the Bun runtime overhead. Every Bun CLI pays this cost. Not reducible without switching runtimes.
+
+### `@napi-rs/keyring` + `bun build --compile` compatibility (2026-03-24)
+
+Spiked with a minimal test: write/read/delete via `@napi-rs/keyring`, then `bun build --compile` and run the compiled binary.
+
+**Results:**
+- Interpreted (`bun run`): all operations pass
+- Compiled (`bun build --compile`): all operations pass
+- Cross-verified via `security find-generic-password` — the compiled binary writes to the real macOS Keychain
+- Binary size impact: +1 MB (58 → 59 MB) — negligible
+- API note: `getPassword()` returns `null` after delete instead of throwing — the `CredentialStore` interface already returns `null` for missing credentials, so this aligns
+
+**Conclusion:** The `@napi-rs/keyring` migration is unblocked.
+
+### Adopt citty + @clack/prompts
+
+Migrated from manual arg parsing and raw ANSI UI to citty (subcommands, typed args, auto help) and `@clack/prompts` (interactive select, confirm). Output and prompts are abstracted behind `OutputAdapter`/`PromptAdapter` in `src/lib/ui/types.ts`.
+
+### `NO_COLOR` / `FORCE_COLOR` support
+
+`src/lib/ui/format.ts` respects [`NO_COLOR`](https://no-color.org/) and `FORCE_COLOR` environment variables. Colors are enabled when `NO_COLOR` is absent and either `FORCE_COLOR` is set or stdout is a TTY. All formatting functions pass through unmodified when disabled. No library needed.
+
+### Provider abstraction (foundation)
+
+The `Provider` interface uses a snapshot/restore design. Each provider bundles credentials + identity into an opaque snapshot for atomic switching with rollback:
+
+```typescript
+type Provider = {
+  readonly name: string
+  snapshot(): Promise<ProviderSnapshot | null>
+  restore(snapshot: ProviderSnapshot): Promise<void>
+  clear(): Promise<void>
+  displayInfo(snapshot: ProviderSnapshot): ProviderDisplayInfo
+}
+```
+
+`ProviderConfig` (platform, homedir, env) is injected for testability. The Claude provider is in `src/lib/providers/claude.ts`, with a registry in `src/lib/providers/registry.ts`.
+
+### Shell hook integration (single-provider)
+
+The `acsw env` command provides shell integration for auto-switching profiles on `cd`, like fnm does for Node.js versions.
+
+**Project config** (`.acswrc` in project root):
+
+```json
+{
+  "profile": "work"
+}
+```
+
+**Shell setup:**
+
+```bash
+# Add to ~/.zshrc / ~/.bashrc
+eval "$(acsw env --use-on-cd)"
+
+# Fish: ~/.config/fish/conf.d/acsw.fish
+acsw env --use-on-cd | source
+```
+
+**Behavior:**
+- On `cd`, the hook runs `acsw env --apply`
+- Walks up directories looking for `.acswrc` (nearest-ancestor wins, like `.nvmrc`)
+- Switches profile if it differs from current, no-op if already active
+- Validates `.acswrc` structure and warns on malformed config
+- Checks for running Claude sessions before switching
+- Sets `process.exitCode = 1` on failure so callers can detect errors
+
+**Done:**
+- CI early-exit: `if (process.env.CI) return;` at the top of `applyAcswrcInner()` skips the hook in CI
+- 5-second timeout on `applyAcswrc()` to prevent shell hangs
+- `isClaudeRunning()` returning `null` (detection failed) now skips auto-switch instead of proceeding
+
+**Remaining:**
+- Multi-provider support in `.acswrc` (e.g., `{ "claude": "work", "aws": "work-prod" }`) — blocked on adding more providers
+
+### Consolidate atomic write in `config.ts`
+
+`config.ts` `writeOAuthAccount()` now calls `writeJson()` from `fs.ts` instead of reimplementing the atomic temp-file-then-rename pattern. The read-modify step remains in `config.ts` (it needs to preserve other keys in `~/.claude.json`), but the write is delegated.
+
+### Credential storage abstraction
+
+Extracted `CredentialStore` interface with platform-specific backends in `src/lib/credentials/`:
+- `types.ts` — `CredentialStore` interface
+- `keychain.ts` — macOS Keychain backend (via `security` CLI)
+- `file.ts` — file-based backend (`~/.claude/.credentials.json`)
+
+The Claude provider selects the backend based on `ProviderConfig.platform`. This unblocks Windows Credential Manager and Linux Secret Service as future backends.
+
+### Consolidate test utilities
+
+Mock provider factories (`createMockProvider`, `createFailingProvider`, `mockResolver`) extracted to `tests/helpers/mock-providers.ts`. Shared across all provider-related test files.
+
+### Abstraction audit note (2026-03-24)
+
+Reviewed the full codebase for abstraction gaps. The `CredentialStore`, `Provider`, and UI adapter (`OutputAdapter`/`PromptAdapter`) boundaries are already the right seams. Bun APIs, citty, and JSON format are deliberate choices that don't benefit from indirection. Process detection is the one gap that blocks cross-platform support.
 
 ## Dependencies
 
@@ -441,159 +644,3 @@ The tool targets minimal runtime dependencies (currently 2: `citty` + `@clack/pr
 | Library | Category | Why | Blocker |
 |---------|----------|-----|---------|
 | `@napi-rs/keyring` | Credentials | Cross-platform (macOS/Windows/Linux), zero runtime deps, prebuilt NAPI-RS binaries, no build step | None — `bun build --compile` compatibility verified (2026-03-24) |
-
-## Architecture
-
-### Decompose `profiles.ts`
-
-**Status:** Partially done
-
-Shared file utilities (atomic JSON write, safe JSON reads) extracted to `src/lib/fs.ts`. `switchProfile()` flattened.
-
-**Remaining:**
-- Snapshot read/write (`readProfileSnapshot`, `writeProfileSnapshot`) could move to `src/lib/snapshot.ts` — these are the core data persistence operations for profiles, currently buried as private helpers in a 354-line file. Extracting would enable direct unit tests instead of testing only through `switchProfile`/`addOAuthProfile`.
-- State backup logic for outgoing profiles could be isolated for grouped switching
-
-### Consolidate switch-and-display logic
-
-**Status:** Planned
-
-"Check active → guard claude → switch → format result → display" is implemented in four separate locations:
-
-1. `src/index.ts` interactive picker (lines 46–97)
-2. `src/index.ts` shortcut handler (lines 100–138) — nearly duplicates `use.ts`
-3. `src/commands/use.ts`
-4. `src/commands/env.ts` `applyAcswrc()` — a non-interactive variant
-
-Each reimplements the same flow with minor variations (interactive vs non-interactive, shortcut vs subcommand). A shared `performSwitch(name, resolve, opts)` returning `ProfileInfo` would collapse the duplication and make it testable in one place.
-
-### Consolidate atomic write in `config.ts`
-
-**Status:** Done
-
-`config.ts` `writeOAuthAccount()` now calls `writeJson()` from `fs.ts` instead of reimplementing the atomic temp-file-then-rename pattern. The read-modify step remains in `config.ts` (it needs to preserve other keys in `~/.claude.json`), but the write is delegated.
-
-### Unify `profilePaths` and remove dead code
-
-**Status:** Partially done
-
-Dead code removed: `profileDir()`, `profileCredentialsFile()`, `profileAccountFile()`, `profileMetaFile()` deleted from `constants.ts` (never imported by any module).
-
-**Remaining:** `profiles.ts` and `repair.ts` still have their own local `profilePaths()` functions. `profiles.ts` returns 4 fields (`dir`, `credentials`, `account`, `meta`) while `repair.ts` returns 3 (no `dir`). Could extract a shared version into `src/lib/paths.ts`, but the duplication is minor (~10 lines each).
-
-### Extract `env.ts` logic into testable lib module
-
-**Status:** Planned
-
-`src/commands/env.ts` contains 5 distinct concerns, all private to the citty command:
-
-1. **`findAcswrc`** — directory walk (ancestor search for `.acswrc`)
-2. **`readAcswrc`** — JSON parsing with validation (structure, types, ENOENT race)
-3. **`applyAcswrc`** — config application (reads state, checks claude running, switches profile)
-4. **`detectShell`** — shell detection from `$SHELL`
-5. **`generateHook`** — shell hook code generation (zsh/bash/fish)
-
-None of these can be tested without executing the command. The test coverage section below lists ~15 test cases that are all blocked by this structure.
-
-**Fix:** Move `findAcswrc`, `readAcswrc`, `detectShell`, and `generateHook` to `src/lib/env.ts` as exported functions. Keep `applyAcswrc` either in the command (thin orchestration) or split it into a testable core that accepts dependencies. The command file becomes a thin shell over the lib.
-
-### Decouple `guardClaudeRunning` from UI
-
-**Status:** Planned
-
-`src/lib/process.ts` `guardClaudeRunning()` mixes process detection with UI interaction — it calls `ui.warn()`, `ui.confirm()`, and `process.exit()` directly. This makes it untestable without mocking the UI module.
-
-Evidence the coupling is wrong: `env.ts` can't use `guardClaudeRunning()` (non-interactive context), so it calls `isClaudeRunning()` directly and handles the UI itself.
-
-**Fix:** `guardClaudeRunning()` should return a result (e.g., `'running' | 'unknown' | 'not-running'`) and let the caller decide how to present it. Or accept a callback/adapter for the confirm prompt. This removes the `process.exit()` call from a lib module and makes both the interactive and non-interactive paths use the same detection logic.
-
-### Extract process detection interface
-
-**Status:** Planned — needed for Windows support
-
-`src/lib/process.ts` `isClaudeRunning()` shells out to `pgrep`, which doesn't exist on Windows. When adding Windows support (alongside `@napi-rs/keyring`), process detection needs a platform-specific backend — same pattern as `CredentialStore`.
-
-```typescript
-type ProcessDetector = {
-  isRunning(name: string): Promise<boolean | null>;
-};
-```
-
-**Backends:**
-- `pgrep` — macOS/Linux (current approach)
-- `tasklist` or `Get-Process` — Windows
-
-Selected based on `ProviderConfig.platform`, injected into the env hook and `guardClaudeRunning`. Keeps the rest of the codebase unaware of platform-specific process detection.
-
-**Abstraction audit note (2026-03-24):** Reviewed the full codebase for abstraction gaps. The `CredentialStore`, `Provider`, and UI adapter (`OutputAdapter`/`PromptAdapter`) boundaries are already the right seams. Bun APIs, citty, and JSON format are deliberate choices that don't benefit from indirection. Process detection is the one gap that blocks cross-platform support.
-
-### Credential storage abstraction
-
-**Status:** Done
-
-Extracted `CredentialStore` interface with platform-specific backends in `src/lib/credentials/`:
-- `types.ts` — `CredentialStore` interface
-- `keychain.ts` — macOS Keychain backend (via `security` CLI)
-- `file.ts` — file-based backend (`~/.claude/.credentials.json`)
-
-The Claude provider selects the backend based on `ProviderConfig.platform`. This unblocks Windows Credential Manager and Linux Secret Service as future backends.
-
-### Consolidate test utilities
-
-**Status:** Done
-
-Mock provider factories (`createMockProvider`, `createFailingProvider`, `mockResolver`) extracted to `tests/helpers/mock-providers.ts`. Shared across all provider-related test files.
-
-## Quality
-
-### Test coverage
-
-**Status:** In progress
-
-Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
-- `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials (8 cases)
-- `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
-- `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
-- `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
-- `credentials/file.ts` — roundtrip, permissions, atomic write, parent dir creation, overwrite, null read, corrupted read, delete, null after delete, delete nonexistent (10 cases)
-- `config.ts` — tested indirectly (raw JSON manipulation), not the actual `readOAuthAccount`/`writeOAuthAccount` exports (3 cases)
-- Repair library — 14 tests via `RepairConfig` path injection
-
-**Untested modules:**
-- `env` command — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `applyAcswrc` (already active no-op, switch success, switch failure exit code, isClaudeRunning gating), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell — blocked by all logic being private to the command file (see "Extract env.ts logic" above)
-- `process.ts` — `isClaudeRunning()` and `guardClaudeRunning()` have zero tests. `guardClaudeRunning` is hard to test due to direct `ui`/`process.exit` coupling.
-- `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
-- `providers/claude.ts` — zero tests. The provider integrates `CredentialStore` + `config.ts` but is only tested indirectly through profile integration tests with mock providers.
-- `config.ts` — `readOAuthAccount`/`writeOAuthAccount` exports are not tested directly. `config.test.ts` reimplements the JSON logic inline rather than calling the functions.
-- All command files (`add.ts`, `use.ts`, `list.ts`, `remove.ts`, `current.ts`, `repair.ts`) — no unit tests. Tested only through the lib-level integration tests.
-- `index.ts` — shortcut handler and interactive picker have zero tests.
-
-Target: 80%+ coverage on `src/lib/`.
-
-### Backup and restore
-
-**Status:** Future
-
-```bash
-acsw backup ~/backup.tar.gz
-acsw restore ~/backup.tar.gz
-```
-
-Exports metadata and account info (not credentials for security).
-
-### Encryption at rest
-
-**Status:** Future
-
-AES-256-GCM encryption for credential files on Linux/Windows (in addition to mode 600).
-
-### Audit logging
-
-**Status:** Nice-to-have
-
-Append-only log of profile switches for compliance/debugging.
-
-```text
-2026-03-23T15:30:00Z - Switch: personal -> work (claude)
-2026-03-23T16:45:00Z - Switch: work -> personal (claude)
-```

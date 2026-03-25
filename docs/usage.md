@@ -31,26 +31,7 @@ sudo mv dist/acsw /usr/local/bin/
 acsw --help
 ```
 
-Should show:
-
-```
-  acsw — Switch between Claude Code accounts
-
-  Usage:
-    acsw                  Interactive profile picker
-    acsw add <name>       Save current session as a profile
-    acsw use <name>       Switch to a profile
-    acsw list             List all profiles
-    acsw remove <name>    Remove a profile
-    acsw current          Show active profile
-    acsw repair           Validate and fix profiles
-    acsw help             Show this help
-
-  Shortcuts:
-    acsw <name>           Same as 'use <name>'
-    acsw ls               Same as 'list'
-    acsw rm <name>        Same as 'remove <name>'
-```
+Should show available subcommands: `add`, `use`, `list` (`ls`), `remove` (`rm`), `current`, `repair`, `env`. Running `acsw <name>` with a profile name works as a shortcut for `acsw use <name>`.
 
 ## Quick start: Two accounts
 
@@ -104,18 +85,7 @@ Output:
 acsw
 ```
 
-Shows:
-
-```
-  Switch profile
-
-  1. personal  Pro  alice@example.com
-  2. work      Team  alice@company.com
-
-  Select [1-2]: _
-```
-
-Type `1` or `2` and press Enter. Claude Code will reload on next window focus.
+Shows an interactive select menu (via `@clack/prompts`) with profile names, subscription tiers, and email addresses. Pick a profile and press Enter. Claude Code picks up the new account on next window focus.
 
 #### Direct switch
 
@@ -231,12 +201,7 @@ acsw work    # Same as: acsw use work
 acsw hobby   # Same as: acsw use hobby
 ```
 
-If the name doesn't match any profile, you'll see:
-
-```
-  ✗ Unknown command: "typo"
-  (help output)
-```
+If the name doesn't match any profile, the argument falls through to citty which shows its standard help output.
 
 ### `acsw list` or `acsw ls`
 
@@ -357,6 +322,35 @@ Checks:
 - Missing files → Re-run `acsw add <name>` or manually restore
 - Corrupted JSON → Delete profile with `acsw remove <name>`
 - Broken state reference → Delete `~/.acsw/state.json` and re-add profiles
+
+### `acsw env`
+
+Shell integration for auto-switching profiles on `cd`, like fnm does for Node.js versions.
+
+**Setup:**
+
+```bash
+# ~/.zshrc or ~/.bashrc
+eval "$(acsw env --use-on-cd)"
+
+# Fish: ~/.config/fish/conf.d/acsw.fish
+acsw env --use-on-cd | source
+```
+
+**Project config** (`.acswrc` in project root):
+
+```json
+{ "profile": "work" }
+```
+
+When you `cd` into a directory with `.acswrc`, the hook runs `acsw env --apply` which switches to the specified profile automatically. It walks up directories looking for `.acswrc` (nearest-ancestor wins, like `.nvmrc`).
+
+**Safety:**
+- Skips auto-switch if Claude Code is running
+- Skips if process detection fails (e.g., `pgrep` unavailable), with a warning
+- Skips in CI environments (`$CI` set)
+- 5-second timeout prevents shell hangs
+- No-op if already on the correct profile
 
 ### `acsw help` or `acsw --help` or `acsw -h`
 
