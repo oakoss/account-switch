@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { PROFILE_NAME_REGEX } from './constants';
+import { ALL_COMMAND_NAMES, COMMANDS, PROFILE_NAME_REGEX } from './constants';
 import { fileExists, isENOENT } from './fs';
 
 export async function listProfileNames(profilesDir: string): Promise<string[]> {
@@ -24,29 +24,11 @@ export async function listProfileNames(profilesDir: string): Promise<string[]> {
   return names.sort();
 }
 
-const SUBCOMMANDS = [
-  'add',
-  'use',
-  'list',
-  'ls',
-  'remove',
-  'rm',
-  'current',
-  'repair',
-  'env',
-  'completions',
-];
+const SUBCOMMANDS = ALL_COMMAND_NAMES;
 
-const SUBCOMMAND_DESCRIPTIONS: Record<string, string> = {
-  add: 'Save current session as a profile',
-  use: 'Switch to a profile',
-  list: 'List all profiles',
-  remove: 'Remove a profile',
-  current: 'Show active profile',
-  repair: 'Validate and repair profiles',
-  env: 'Shell integration for auto-switching',
-  completions: 'Generate shell completions',
-};
+const SUBCOMMAND_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  COMMANDS.map((c) => [c.name, c.description]),
+);
 
 export function generateBashCompletion(): string {
   const cmds = SUBCOMMANDS.join(' ');

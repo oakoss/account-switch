@@ -12,6 +12,29 @@ export const KEYCHAIN_SERVICE = 'Claude Code-credentials';
 
 export const PROFILE_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 
+export type CommandEntry = { name: string; description: string };
+
+export const COMMANDS: readonly CommandEntry[] = [
+  { name: 'add', description: 'Save current session as a profile' },
+  { name: 'use', description: 'Switch to a profile' },
+  { name: 'list', description: 'List all profiles' },
+  { name: 'remove', description: 'Remove a profile' },
+  { name: 'current', description: 'Show active profile' },
+  { name: 'repair', description: 'Validate and fix profiles' },
+  { name: 'env', description: 'Shell integration for auto-switching' },
+  { name: 'completions', description: 'Generate shell completions' },
+];
+
+export const COMMAND_ALIASES: Record<string, string> = {
+  ls: 'list',
+  rm: 'remove',
+};
+
+export const ALL_COMMAND_NAMES = [
+  ...COMMANDS.map((c) => c.name),
+  ...Object.keys(COMMAND_ALIASES),
+];
+
 export function createProviderConfig(): ProviderConfig {
   return {
     platform: process.platform,

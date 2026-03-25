@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { createProviderConfig } from '@lib/constants';
+import { ALL_COMMAND_NAMES, createProviderConfig } from '@lib/constants';
 import { listProfiles } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
 import { attemptSwitch } from '@lib/switch';
@@ -8,16 +8,7 @@ import * as ui from '@lib/ui';
 import { defineCommand, runMain } from 'citty';
 
 const KNOWN_COMMANDS = new Set([
-  'add',
-  'use',
-  'list',
-  'ls',
-  'remove',
-  'rm',
-  'current',
-  'repair',
-  'env',
-  'completions',
+  ...ALL_COMMAND_NAMES,
   'help',
   '--help',
   '-h',
