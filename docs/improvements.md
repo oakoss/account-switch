@@ -182,7 +182,11 @@ acsw env --use-on-cd | source
 
 **Remaining work:**
 - Multi-provider support in `.acswrc` (e.g., `{ "claude": "work", "aws": "work-prod" }`) — blocked on adding more providers
-- CI early-exit: the shell hook runs on every `cd`; in CI it should be a no-op. Add `if (process.env.CI) return;` at the top of `applyAcswrc()`. Evaluated `ci-info` (30 KB, 0 deps, detects 56 CI vendors) but `!!process.env.CI` is sufficient for this use case.
+
+**Done:**
+- CI early-exit: `if (process.env.CI) return;` at the top of `applyAcswrcInner()` skips the hook in CI
+- 5-second timeout on `applyAcswrc()` to prevent shell hangs
+- `isClaudeRunning()` returning `null` (detection failed) now skips auto-switch instead of proceeding
 
 ## Profile management
 
