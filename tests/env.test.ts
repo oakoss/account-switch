@@ -1,8 +1,25 @@
-import { findAcswrc, readAcswrc, detectShell, generateHook } from '@lib/env';
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtemp, rm, mkdir } from 'node:fs/promises';
+import type { ProfilesConfig } from '@lib/types';
+
+import {
+  applyAcswrc,
+  findAcswrc,
+  readAcswrc,
+  detectShell,
+  generateHook,
+} from '@lib/env';
+import * as processModule from '@lib/process';
+import { describe, it, expect, beforeEach, afterEach, spyOn } from 'bun:test';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+import { createMockProvider, mockResolver } from './helpers/mock-providers';
+import {
+  mockCreds,
+  mockIdentity,
+  mockSnap,
+  setupProfile,
+} from './helpers/setup-profile';
 
 // -- findAcswrc --
 
@@ -192,5 +209,130 @@ describe('generateHook', () => {
     expect(generateHook('zsh').endsWith('\n')).toBe(true);
     expect(generateHook('bash').endsWith('\n')).toBe(true);
     expect(generateHook('fish').endsWith('\n')).toBe(true);
+  });
+});
+
+// -- applyAcswrc --
+
+describe('applyAcswrc', () => {
+  let cwdDir: string;
+  let profilesDir: string;
+  let config: ProfilesConfig;
+  let claudeSpy: ReturnType<typeof spyOn> | undefined;
+
+  beforeEach(async () => {
+    cwdDir = await mkdtemp(join(tmpdir(), 'acsw-cwd-'));
+    profilesDir = await mkdtemp(join(tmpdir(), 'acsw-profiles-'));
+    config = { profilesDir, stateFile: join(profilesDir, 'state.json') };
+  });
+
+  afterEach(async () => {
+    claudeSpy?.mockRestore();
+    claudeSpy = undefined;
+    await rm(cwdDir, { recursive: true });
+    await rm(profilesDir, { recursive: true });
+  });
+
+  it('returns ci-skip when ci option is true', async () => {
+    const resolve = mockResolver(createMockProvider());
+    const result = await applyAcswrc(cwdDir, resolve, { ci: true, config });
+    expect(result.status).toBe('ci-skip');
+  });
+
+  it('returns no-rc when no .acswrc exists', async () => {
+    const resolve = mockResolver(createMockProvider());
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('no-rc');
+  });
+
+  it('returns invalid-rc when profile key is missing', async () => {
+    await Bun.write(join(cwdDir, '.acswrc'), '{}');
+    const resolve = mockResolver(createMockProvider());
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('invalid-rc');
+    if (result.status === 'invalid-rc') {
+      expect(result.message).toBe('missing "profile" key');
+    }
+  });
+
+  it('returns invalid-rc when profile value is empty', async () => {
+    await Bun.write(join(cwdDir, '.acswrc'), '{"profile":"  "}');
+    const resolve = mockResolver(createMockProvider());
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('invalid-rc');
+    if (result.status === 'invalid-rc') {
+      expect(result.message).toBe('empty "profile" value');
+    }
+  });
+
+  it('returns invalid-rc for malformed JSON', async () => {
+    await Bun.write(join(cwdDir, '.acswrc'), '{{not json');
+    const resolve = mockResolver(createMockProvider());
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('invalid-rc');
+  });
+
+  it('returns not-found when profile does not exist', async () => {
+    await Bun.write(join(cwdDir, '.acswrc'), '{"profile":"missing"}');
+    const resolve = mockResolver(createMockProvider());
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('not-found');
+    if (result.status === 'not-found') {
+      expect(result.profile).toBe('missing');
+    }
+  });
+
+  it('returns already-active when profile is current', async () => {
+    await setupProfile(profilesDir, 'work', mockCreds, mockIdentity);
+    await Bun.write(config.stateFile, JSON.stringify({ active: 'work' }));
+    await Bun.write(join(cwdDir, '.acswrc'), '{"profile":"work"}');
+
+    const resolve = mockResolver(createMockProvider(mockSnap));
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('already-active');
+  });
+
+  it('returns claude-running when Claude is active', async () => {
+    await setupProfile(profilesDir, 'work', mockCreds, mockIdentity);
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
+    await Bun.write(join(cwdDir, '.acswrc'), '{"profile":"work"}');
+
+    claudeSpy = spyOn(processModule, 'checkClaudeStatus').mockResolvedValue(
+      'running',
+    );
+    const resolve = mockResolver(createMockProvider(mockSnap));
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('claude-running');
+  });
+
+  it('returns claude-unknown when status check fails', async () => {
+    await setupProfile(profilesDir, 'work', mockCreds, mockIdentity);
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
+    await Bun.write(join(cwdDir, '.acswrc'), '{"profile":"work"}');
+
+    claudeSpy = spyOn(processModule, 'checkClaudeStatus').mockResolvedValue(
+      'unknown',
+    );
+    const resolve = mockResolver(createMockProvider(mockSnap));
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+    expect(result.status).toBe('claude-unknown');
+  });
+
+  it('switches profile and returns result on success', async () => {
+    await setupProfile(profilesDir, 'work', mockCreds, mockIdentity);
+    await Bun.write(config.stateFile, JSON.stringify({ active: null }));
+    await Bun.write(join(cwdDir, '.acswrc'), '{"profile":"work"}');
+
+    claudeSpy = spyOn(processModule, 'checkClaudeStatus').mockResolvedValue(
+      'not-running',
+    );
+    const resolve = mockResolver(createMockProvider(mockSnap));
+    const result = await applyAcswrc(cwdDir, resolve, { ci: false, config });
+
+    expect(result.status).toBe('switched');
+    if (result.status === 'switched') {
+      expect(result.profile).toBe('work');
+      expect(result.info.name).toBe('work');
+    }
   });
 });
