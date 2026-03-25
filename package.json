@@ -39,7 +39,8 @@
     "format:check": "oxfmt --check",
     "lint": "oxlint -c oxlintrc.json src/ tests/",
     "lint:fix": "oxlint -c oxlintrc.json --fix src/ tests/",
-    "lint:md": "markdownlint-cli2 'docs/**/*.md' '*.md'",
+    "lint:md": "markdownlint-cli2 '**/*.md'",
+    "lint:md:fix": "markdownlint-cli2 --fix '**/*.md'",
     "publint": "publint",
     "test": "bun test",
     "typecheck": "bun x tsc --noEmit"

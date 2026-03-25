@@ -12,11 +12,11 @@ export default defineConfig({
     allowCustomScopes: false,
     allowEmptyScopes: true,
     scopes: ['cli', 'config', 'credentials', 'profiles', 'ui'],
-    skipQuestions: ['breaking', 'footer', 'issues'],
+    skipQuestions: ['breaking', 'footer'],
   },
   rules: {
-    'body-max-line-length': [0, 'always'],
-    'footer-max-line-length': [0, 'always'],
+    'body-max-line-length': [0],
+    'footer-max-line-length': [0],
     'header-max-length': [2, 'always', 200],
     'scope-enum': [
       2,

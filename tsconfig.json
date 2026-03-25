@@ -10,6 +10,6 @@
     "types": ["bun"],
     "paths": { "@lib/*": ["./src/lib/*"], "@commands/*": ["./src/commands/*"] }
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

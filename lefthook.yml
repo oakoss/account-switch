@@ -8,7 +8,7 @@ pre-commit:
     typecheck:
       glob: '*.ts'
       run: pnpm typecheck --pretty false
-    oxlint:
+    lint:
       glob: '*.ts'
       run: pnpm oxlint -c oxlintrc.json --fix {staged_files}
       stage_fixed: true
