@@ -2,7 +2,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { PROFILE_NAME_REGEX } from './constants';
-import { isENOENT } from './fs';
+import { fileExists, isENOENT } from './fs';
 
 export async function listProfileNames(profilesDir: string): Promise<string[]> {
   let entries: string[];
@@ -17,7 +17,7 @@ export async function listProfileNames(profilesDir: string): Promise<string[]> {
   for (const entry of entries) {
     const name = String(entry);
     if (!PROFILE_NAME_REGEX.test(name)) continue;
-    if (await Bun.file(join(profilesDir, name, 'profile.json')).exists()) {
+    if (await fileExists(join(profilesDir, name, 'profile.json'))) {
       names.push(name);
     }
   }

@@ -1,6 +1,7 @@
-import { join, dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 
-import { isENOENT } from './fs';
+import { fileExists, isENOENT } from './fs';
 
 export type AcswrcConfig = { profile?: string };
 
@@ -9,7 +10,7 @@ export async function findAcswrc(startDir: string): Promise<string | null> {
 
   while (true) {
     const rcPath = join(dir, '.acswrc');
-    if (await Bun.file(rcPath).exists()) return rcPath;
+    if (await fileExists(rcPath)) return rcPath;
     const parent = dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -19,7 +20,7 @@ export async function findAcswrc(startDir: string): Promise<string | null> {
 export async function readAcswrc(path: string): Promise<AcswrcConfig | null> {
   let raw: unknown;
   try {
-    raw = await Bun.file(path).json();
+    raw = JSON.parse(await readFile(path, 'utf8'));
   } catch (error) {
     // Race: file may be deleted between findAcswrc's exists() check and this read
     if (isENOENT(error)) {

@@ -1,7 +1,9 @@
+import { readFile } from 'node:fs/promises';
+
 import type { OAuthAccount } from './types';
 
 import { CLAUDE_JSON } from './constants';
-import { writeJson } from './fs';
+import { isENOENT, writeJson } from './fs';
 
 type ClaudeJson = { oauthAccount?: OAuthAccount; [key: string]: unknown };
 
@@ -9,10 +11,15 @@ export async function readOAuthAccount(
   path?: string,
 ): Promise<OAuthAccount | null> {
   const configPath = path ?? CLAUDE_JSON;
-  const file = Bun.file(configPath);
-  if (!(await file.exists())) return null;
+  let content: string;
   try {
-    const data = (await file.json()) as ClaudeJson;
+    content = await readFile(configPath, 'utf8');
+  } catch (error) {
+    if (isENOENT(error)) return null;
+    throw error;
+  }
+  try {
+    const data = JSON.parse(content) as ClaudeJson;
     return data.oauthAccount ?? null;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -25,16 +32,20 @@ export async function writeOAuthAccount(
   path?: string,
 ): Promise<void> {
   const configPath = path ?? CLAUDE_JSON;
-  const file = Bun.file(configPath);
-  if (!(await file.exists())) {
-    throw new Error(
-      `${configPath} not found. Run 'claude' first to initialize.`,
-    );
+  let raw: string;
+  try {
+    raw = await readFile(configPath, 'utf8');
+  } catch (error) {
+    if (isENOENT(error)) {
+      throw new Error(
+        `${configPath} not found. Run 'claude' first to initialize.`,
+      );
+    }
+    throw error;
   }
 
   let data: ClaudeJson;
   try {
-    const raw = await file.text();
     data = JSON.parse(raw) as ClaudeJson;
   } catch (error) {
     const parseMsg = error instanceof Error ? error.message : String(error);

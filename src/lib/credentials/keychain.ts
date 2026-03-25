@@ -1,6 +1,7 @@
 import type { OAuthCredentials } from '@lib/types';
 
 import { KEYCHAIN_SERVICE, getKeychainAccount } from '@lib/constants';
+import { exec } from '@lib/spawn';
 
 import type { CredentialStore } from './types';
 
@@ -11,22 +12,19 @@ function detectKeychainFormat(raw: string): 'json' | 'hex' {
 export function createKeychainStore(): CredentialStore {
   return {
     async read(): Promise<OAuthCredentials | null> {
-      const proc = Bun.spawn(
-        [
-          'security',
-          'find-generic-password',
-          '-s',
-          KEYCHAIN_SERVICE,
-          '-a',
-          getKeychainAccount(),
-          '-w',
-        ],
-        { stdout: 'pipe', stderr: 'pipe' },
-      );
-
-      const raw = (await new Response(proc.stdout).text()).trim();
-      const stderr = (await new Response(proc.stderr).text()).trim();
-      const exitCode = await proc.exited;
+      const {
+        stdout: raw,
+        stderr,
+        exitCode,
+      } = await exec([
+        'security',
+        'find-generic-password',
+        '-s',
+        KEYCHAIN_SERVICE,
+        '-a',
+        getKeychainAccount(),
+        '-w',
+      ]);
 
       if (exitCode !== 0) {
         if (stderr.includes('could not be found')) return null;
@@ -53,21 +51,15 @@ export function createKeychainStore(): CredentialStore {
       const account = getKeychainAccount();
 
       let format: 'json' | 'hex' = 'json';
-      const existing = Bun.spawn(
-        [
-          'security',
-          'find-generic-password',
-          '-s',
-          KEYCHAIN_SERVICE,
-          '-a',
-          account,
-          '-w',
-        ],
-        { stdout: 'pipe', stderr: 'pipe' },
-      );
-      const existingRaw = (await new Response(existing.stdout).text()).trim();
-      await new Response(existing.stderr).text();
-      const existingCode = await existing.exited;
+      const { stdout: existingRaw, exitCode: existingCode } = await exec([
+        'security',
+        'find-generic-password',
+        '-s',
+        KEYCHAIN_SERVICE,
+        '-a',
+        account,
+        '-w',
+      ]);
       if (existingCode === 0) {
         format = detectKeychainFormat(existingRaw);
       }
@@ -76,61 +68,46 @@ export function createKeychainStore(): CredentialStore {
       const value =
         format === 'hex' ? Buffer.from(json, 'utf8').toString('hex') : json;
 
-      const del = Bun.spawn(
-        [
-          'security',
-          'delete-generic-password',
-          '-s',
-          KEYCHAIN_SERVICE,
-          '-a',
-          account,
-        ],
-        { stdout: 'pipe', stderr: 'pipe' },
-      );
-      const delErr = (await new Response(del.stderr).text()).trim();
-      const delCode = await del.exited;
+      const { stderr: delErr, exitCode: delCode } = await exec([
+        'security',
+        'delete-generic-password',
+        '-s',
+        KEYCHAIN_SERVICE,
+        '-a',
+        account,
+      ]);
       if (delCode !== 0 && delCode !== 44) {
         throw new Error(
           `Failed to delete existing keychain entry (exit ${delCode}): ${delErr}`,
         );
       }
 
-      const add = Bun.spawn(
-        [
-          'security',
-          'add-generic-password',
-          '-s',
-          KEYCHAIN_SERVICE,
-          '-a',
-          account,
-          '-w',
-          value,
-        ],
-        { stdout: 'pipe', stderr: 'pipe' },
-      );
-      const addErr = (await new Response(add.stderr).text()).trim();
-      const exitCode = await add.exited;
-      if (exitCode !== 0) {
+      const { stderr: addErr, exitCode: addCode } = await exec([
+        'security',
+        'add-generic-password',
+        '-s',
+        KEYCHAIN_SERVICE,
+        '-a',
+        account,
+        '-w',
+        value,
+      ]);
+      if (addCode !== 0) {
         throw new Error(
-          `Failed to write credentials to macOS Keychain (exit ${exitCode}): ${addErr}`,
+          `Failed to write credentials to macOS Keychain (exit ${addCode}): ${addErr}`,
         );
       }
     },
 
     async delete(): Promise<void> {
-      const proc = Bun.spawn(
-        [
-          'security',
-          'delete-generic-password',
-          '-s',
-          KEYCHAIN_SERVICE,
-          '-a',
-          getKeychainAccount(),
-        ],
-        { stdout: 'pipe', stderr: 'pipe' },
-      );
-      const stderr = (await new Response(proc.stderr).text()).trim();
-      const exitCode = await proc.exited;
+      const { stderr, exitCode } = await exec([
+        'security',
+        'delete-generic-password',
+        '-s',
+        KEYCHAIN_SERVICE,
+        '-a',
+        getKeychainAccount(),
+      ]);
       if (exitCode !== 0 && exitCode !== 44) {
         throw new Error(
           `Failed to delete keychain entry (exit ${exitCode}): ${stderr}`,

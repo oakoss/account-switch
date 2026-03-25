@@ -1,5 +1,5 @@
 import { renameSync, unlinkSync } from 'node:fs';
-import { chmod, mkdir } from 'node:fs/promises';
+import { access, chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export function isENOENT(error: unknown): boolean {
@@ -11,15 +11,29 @@ export function isENOENT(error: unknown): boolean {
   );
 }
 
+export async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function ensureDir(path: string): Promise<void> {
   await mkdir(path, { recursive: true });
 }
 
 export async function readJsonOptional<T>(path: string): Promise<T | null> {
-  const file = Bun.file(path);
-  if (!(await file.exists())) return null;
+  let content: string;
   try {
-    return (await file.json()) as T;
+    content = await readFile(path, 'utf8');
+  } catch (error) {
+    if (isENOENT(error)) return null;
+    throw error;
+  }
+  try {
+    return JSON.parse(content) as T;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to parse ${path}: ${msg}`);
@@ -30,10 +44,15 @@ export async function readJsonWithFallback<T>(
   path: string,
   fallback: T,
 ): Promise<T> {
-  const file = Bun.file(path);
-  if (!(await file.exists())) return fallback;
+  let content: string;
   try {
-    return (await file.json()) as T;
+    content = await readFile(path, 'utf8');
+  } catch (error) {
+    if (isENOENT(error)) return fallback;
+    throw error;
+  }
+  try {
+    return JSON.parse(content) as T;
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to parse ${path}: ${msg}`);
@@ -47,7 +66,7 @@ export async function writeJson(
 ): Promise<void> {
   const tmpPath = `${path}.tmp`;
   try {
-    await Bun.write(tmpPath, JSON.stringify(data, null, 2));
+    await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
     if (mode) await chmod(tmpPath, mode);
     renameSync(tmpPath, path);
   } catch (error) {

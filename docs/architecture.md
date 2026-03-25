@@ -4,7 +4,7 @@ This document describes the internal structure and data flow of `acsw`.
 
 ## Project structure
 
-```
+```text
 src/
 ├── index.ts                    # CLI entry point, command routing, shortcut handler
 ├── commands/
@@ -52,14 +52,16 @@ src/
 Claude Code stores authentication data in two locations:
 
 **User's home directory (`~/.claude/`, `~/.claude.json`)**
+
 - Managed by Claude Code itself
 - Contains active OAuth account and credentials
 
 **Profile directory (`~/.acsw/`)**
+
 - Managed by `acsw`
 - Contains saved profiles
 
-```
+```text
 ~/.acsw/
 ├── state.json                  # { active: "work" }
 ├── personal/
@@ -159,7 +161,7 @@ User account info extracted from Claude Code's `~/.claude.json`:
 
 When you run `acsw use <name>`:
 
-```
+```text
 1. Validate profile exists
    └─ Read ~/.acsw/<name>/profile.json
 
@@ -192,14 +194,14 @@ All JSON writes use atomic patterns to prevent corruption:
 
 ```typescript
 // 1. Write to temp file
-const tmpPath = `${path}.tmp`
-await Bun.write(tmpPath, JSON.stringify(data, null, 2))
+const tmpPath = `${path}.tmp`;
+await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf8');
 
 // 2. Set permissions (if sensitive)
-await chmod(tmpPath, 0o600)
+await chmod(tmpPath, 0o600);
 
 // 3. Atomic rename
-renameSync(tmpPath, path)
+renameSync(tmpPath, path);
 ```
 
 This ensures partial writes never corrupt live files.
@@ -222,19 +224,21 @@ Credential storage abstraction using the `CredentialStore` interface:
 
 ```typescript
 type CredentialStore = {
-  read(): Promise<OAuthCredentials | null>
-  write(creds: OAuthCredentials): Promise<void>
-  delete(): Promise<void>
-}
+  read(): Promise<OAuthCredentials | null>;
+  write(creds: OAuthCredentials): Promise<void>;
+  delete(): Promise<void>;
+};
 ```
 
 `credentials.ts` exports `createCredentialStore(config)` which selects the backend based on `ProviderConfig.platform`:
+
 - **macOS (`darwin`):** `keychain.ts` — shells out to `security` CLI for Keychain access
 - **Other platforms:** `file.ts` — reads/writes `~/.claude/.credentials.json` with mode 600
 
 ### `providers/claude.ts`
 
 The Claude provider implements the `Provider` interface (snapshot/restore design). It bundles two things into each snapshot:
+
 1. OAuth credentials via `CredentialStore`
 2. `oauthAccount` field from `~/.claude.json` via `config.ts`
 
@@ -306,7 +310,7 @@ TypeScript type definitions:
 
 ### Interactive picker (no args)
 
-```
+```text
 1. List all profiles with listProfiles()
 2. Display @clack/prompts select menu
 3. User picks a profile
@@ -317,7 +321,7 @@ TypeScript type definitions:
 
 ### Add command
 
-```
+```text
 1. Validate name format
 2. Check name doesn't already exist
 3. Warn if Claude is running
@@ -329,7 +333,7 @@ TypeScript type definitions:
 
 ### Remove command
 
-```
+```text
 1. Check profile exists
 2. Prompt for confirmation
 3. Delete ~/.acsw/<name>/
@@ -339,7 +343,7 @@ TypeScript type definitions:
 
 ### List command
 
-```
+```text
 1. Enumerate profiles with listProfiles()
 2. For each profile:
    - Show indicator (▸) if active
@@ -349,7 +353,7 @@ TypeScript type definitions:
 
 ### Repair command
 
-```
+```text
 1. Scan ~/.acsw/ directory
 2. For each profile:
    ├─ Check profile.json exists and is valid JSON
@@ -363,7 +367,7 @@ TypeScript type definitions:
 
 ### Current command
 
-```
+```text
 1. Read state.json to get active profile name
 2. List profiles to get metadata
 3. Display active profile info with colors
@@ -375,7 +379,7 @@ Two modes: hook generation (`--use-on-cd`) and hook execution (`--apply`).
 
 **`acsw env --use-on-cd`** (runs once during shell init):
 
-```
+```text
 1. Detect shell from $SHELL (or --shell flag)
 2. Output shell-specific hook code (zsh/bash/fish)
    └─ Hook calls `acsw env --apply` on every cd
@@ -383,7 +387,7 @@ Two modes: hook generation (`--use-on-cd`) and hook execution (`--apply`).
 
 **`acsw env --apply`** (runs on every cd):
 
-```
+```text
 1. Early exit if $CI is set
 2. Walk up directories from cwd looking for .acswrc
    └─ Return if none found
@@ -407,11 +411,11 @@ try {
   // operation
 } catch (err) {
   if (err instanceof Error) {
-    ui.error(err.message)
+    ui.error(err.message);
   } else {
-    ui.error(String(err))
+    ui.error(String(err));
   }
-  process.exit(1)
+  process.exit(1);
 }
 ```
 

@@ -13,6 +13,7 @@ import type {
 import { PROFILES_DIR, STATE_FILE, PROFILE_NAME_REGEX } from './constants';
 import {
   ensureDir,
+  fileExists,
   isENOENT,
   readJsonOptional,
   readJsonWithFallback,
@@ -68,7 +69,7 @@ export async function profileExists(
   config: ProfilesConfig = DEFAULT_CONFIG,
 ): Promise<boolean> {
   const { meta } = profilePaths(config.profilesDir, name);
-  return Bun.file(meta).exists();
+  return fileExists(meta);
 }
 
 // -- Display info --

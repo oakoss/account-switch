@@ -1,19 +1,15 @@
-import { readdir, chmod, stat } from 'node:fs/promises';
+import { chmod, readFile, readdir, stat } from 'node:fs/promises';
 
 import type { RepairConfig, RepairResult, RepairSummary } from './types';
 
 import { PROFILES_DIR, PROFILE_NAME_REGEX, STATE_FILE } from './constants';
-import { isENOENT } from './fs';
+import { fileExists, isENOENT } from './fs';
 import { profilePaths } from './paths';
 import { readState } from './profiles';
 
-async function fileExists(path: string): Promise<boolean> {
-  return Bun.file(path).exists();
-}
-
 async function isValidJson(path: string): Promise<boolean> {
   try {
-    await Bun.file(path).json();
+    JSON.parse(await readFile(path, 'utf8'));
     return true;
   } catch (error: unknown) {
     if (error instanceof SyntaxError) return false;

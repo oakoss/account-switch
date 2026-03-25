@@ -7,12 +7,14 @@ Patterns and conventions used across the `acsw` codebase. See also [CLAUDE.md](.
 ### Lib vs commands
 
 `src/lib/` modules are pure logic with no side effects:
+
 - No `process.exit()` calls (exception: `ui/clack.ts` exits with 130 on user cancel, as a UI adapter boundary)
 - No direct UI output (`ui.warn`, `ui.success`, etc.)
 - Return values or throw errors; let callers decide presentation
 - Accept injected config for testability
 
 `src/commands/` modules handle UI and user interaction:
+
 - Call lib functions and format results for display
 - Own `process.exit()` and `process.exitCode` decisions
 - Use `@clack/prompts` via the `@lib/ui` facade
@@ -20,12 +22,14 @@ Patterns and conventions used across the `acsw` codebase. See also [CLAUDE.md](.
 ### Shared command helpers
 
 Reusable UI-layer logic lives in `src/commands/` (not `src/lib/`):
+
 - `guard-claude.ts` — Claude-running check with prompt; accepts `onDecline` callback for callers needing `return` instead of `process.exit(0)`
 - `switch-display.ts` — consistent post-switch display (name, subscription type, email, orgName)
 
 ### Non-interactive vs interactive paths
 
 The `env --apply` hook runs on every `cd` and must never block:
+
 - Uses `process.exitCode = 1` instead of `process.exit(1)`
 - Catches all errors, surfaces via `ui.error`; never raw stack traces
 - Skips rather than prompts (Claude running, detection failure, CI)
@@ -45,6 +49,7 @@ export async function switchProfile(
 ```
 
 Config types used:
+
 - `ProfilesConfig` — `{ profilesDir, stateFile }` for profile operations
 - `ProviderConfig` — `{ platform, homedir, env }` for provider/credential backends
 - `RepairConfig` — same as `ProfilesConfig`, for repair operations
@@ -92,7 +97,9 @@ try {
 Include the file path and actionable guidance:
 
 ```typescript
-throw new Error(`${configPath} is corrupted and cannot be updated: ${msg}. Back up the file and run 'claude' to reinitialize it.`);
+throw new Error(
+  `${configPath} is corrupted and cannot be updated: ${msg}. Back up the file and run 'claude' to reinitialize it.`,
+);
 ```
 
 ## File I/O
@@ -102,9 +109,9 @@ throw new Error(`${configPath} is corrupted and cannot be updated: ${msg}. Back 
 All JSON writes use temp-file-then-rename via `writeJson()` from `@lib/fs`:
 
 ```typescript
-await writeJson(path, data);           // standard
-await writeJson(path, data, 0o600);    // with permissions
-await writeJsonSecure(path, data);     // 0o600 + ensureDir
+await writeJson(path, data); // standard
+await writeJson(path, data, 0o600); // with permissions
+await writeJsonSecure(path, data); // 0o600 + ensureDir
 ```
 
 ### Read patterns
@@ -123,6 +130,7 @@ All shared types live in `src/lib/types.ts`: `Provider`, `ProviderSnapshot`, `Pr
 ### Co-located types
 
 Types private to a single module stay in that module:
+
 - `CredentialStore` in `src/lib/credentials/types.ts`
 - `AcswrcConfig` in `src/lib/env.ts`
 - `ClaudeSnapshot` in `src/lib/providers/claude.ts`
@@ -157,6 +165,7 @@ describe('moduleName', () => {
 ### Mock providers
 
 Use factories from `tests/helpers/mock-providers.ts`:
+
 - `createMockProvider(snapshot)` — tracks `restoreCalls`, `clearCalled`, `current`
 - `createFailingProvider(snapshot, failOnRestore, failOnRollback)` — for testing rollback paths
 - `mockResolver(provider)` — wraps a provider as a `ProviderResolver`
@@ -175,23 +184,20 @@ const config: ProviderConfig = {
 
 ### Assertions
 
-- File contents: `await Bun.file(path).json()` then `expect(...)`
-- File existence: `await Bun.file(path).exists()`
+- File contents: `JSON.parse(await readFile(path, 'utf8'))` then `expect(...)` (tests can use `Bun.file(path).json()`)
+- File existence: `await fileExists(path)` from `@lib/fs` (tests can use `Bun.file(path).exists()`)
 - File permissions: `(await stat(path)).mode & 0o777`
 - Thrown errors: `await expect(fn()).rejects.toThrow('substring')`
 
 ## Subprocess pattern
 
-Always consume stdout/stderr before awaiting exit to avoid pipe deadlock:
+Use `exec()` from `@lib/spawn` which wraps `child_process.spawn` and collects stdout/stderr before resolving to avoid pipe deadlock:
 
 ```typescript
-const proc = Bun.spawn(['cmd'], { stdout: 'pipe', stderr: 'pipe' });
-const stdout = await new Response(proc.stdout).text();
-const stderr = await new Response(proc.stderr).text();
-const exitCode = await proc.exited;
-```
+import { exec } from '@lib/spawn';
 
-If stderr is not needed, use `stderr: 'ignore'` instead of piping and not consuming it. Note: `src/lib/process.ts` currently pipes stderr without consuming it; this is a known deviation.
+const { stdout, stderr, exitCode } = await exec(['cmd', 'arg1', 'arg2']);
+```
 
 ## Linting and formatting
 

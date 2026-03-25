@@ -7,9 +7,10 @@ CLI tool for switching between Claude Code OAuth accounts. Package name: `accoun
 Credential storage is abstracted in two layers:
 
 - **`Provider`** (`src/lib/providers/`) — high-level interface for snapshot/restore of full profile state (credentials + identity). The profile layer (`profiles.ts`) orchestrates switching via opaque snapshots without knowing provider-specific storage details.
-- **`CredentialStore`** (`src/lib/credentials/types.ts`) — low-level interface used *within* providers for platform-specific credential I/O. Backends: `keychain.ts` (macOS via `security` CLI) and `file.ts` (Linux via `~/.claude/.credentials.json`). Selected based on `ProviderConfig.platform`.
+- **`CredentialStore`** (`src/lib/credentials/types.ts`) — low-level interface used _within_ providers for platform-specific credential I/O. Backends: `keychain.ts` (macOS via `security` CLI) and `file.ts` (Linux via `~/.claude/.credentials.json`). Selected based on `ProviderConfig.platform`.
 
 The Claude provider (`providers/claude.ts`) swaps two things:
+
 1. **OAuth credentials** — via the appropriate `CredentialStore` backend
 2. **`oauthAccount` field** in `~/.claude.json`
 
@@ -36,7 +37,7 @@ Design decisions and their rationale are recorded as ADRs in [docs/decisions/](d
 
 ## Commands
 
-```
+```bash
 pnpm install          # install deps
 pnpm dev -- <cmd>     # run from source (e.g., pnpm dev -- list)
 pnpm test             # run tests
@@ -53,10 +54,11 @@ pnpm build            # compile standalone binary to dist/acsw
 See [docs/coding-standards.md](docs/coding-standards.md) for full patterns and examples.
 
 Key rules:
-- **Runtime:** Bun — use `Bun.file()`, `Bun.write()`, `Bun.spawn()` instead of Node equivalents
+
+- **Runtime:** Bun for dev/test, Node.js for npm package — use `node:fs/promises` and `node:child_process` (not `Bun.*` APIs) so the `--target node` build works. Process spawning uses `exec()` from `@lib/spawn`.
 - **Imports:** `node:` protocol for builtins, `@lib/`/`@commands/` aliases for cross-directory, `./` for same-directory
 - **Error handling:** Never silently swallow errors. Use `isENOENT()` from `@lib/fs` for file-not-found checks. Clean up `.tmp` files in catch blocks.
-- **Spawn pattern:** Always read stdout/stderr before `await proc.exited` to avoid pipe deadlock
+- **Spawn pattern:** Use `exec()` from `@lib/spawn` which collects stdout/stderr before resolving to avoid pipe deadlock
 - **Lib purity:** No `process.exit()` or UI calls in `src/lib/` (exception: `ui/clack.ts` exits 130 on cancel). Commands own presentation and exit codes.
 - **UI abstraction:** Output via `OutputAdapter`/`PromptAdapter` in `src/lib/ui/types.ts`; the `@lib/ui` facade wires `@clack/prompts` but can be swapped
 - **Testability:** Lib functions accept optional config params with production defaults for DI in tests.
