@@ -88,7 +88,7 @@ Follow this workflow for every task. Never commit without completing all steps.
    - Trekker: mark tasks in-progress/completed
    - ADRs: if implementing a Proposed ADR, flip to Accepted. If contradicting an existing ADR, mark Superseded and create a new one. If completing work born from an ADR, verify it still reflects reality.
    - Other docs: architecture.md, README, etc. as needed
-7. **If user-facing change**, create changeset now (you know what the change is at this point)
+7. **Create changeset if needed** — any change to `src/` or `tests/` needs one. Pre-1.0 policy: minor for features, patch for refactors/fixes. Docs-only or config-only changes don't need a release.
 8. **Run checks:** `pnpm format && pnpm lint:fix && pnpm test && pnpm typecheck && pnpm lint:md`
 9. **Run reviews** — code-reviewer and silent-failure-hunter agents; fix any issues found
 10. **If docs or comments changed:** run `/de-slopify` and `/technical-docs` as final polish
