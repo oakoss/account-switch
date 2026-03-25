@@ -31,7 +31,7 @@ sudo mv dist/acsw /usr/local/bin/
 acsw --help
 ```
 
-Should show available subcommands: `add`, `use`, `list` (`ls`), `remove` (`rm`), `current`, `repair`, `env`. Running `acsw <name>` with a profile name works as a shortcut for `acsw use <name>`.
+Should show available subcommands: `add`, `use`, `list` (`ls`), `remove` (`rm`), `current`, `repair`, `env`, `completions`. Running `acsw <name>` with a profile name works as a shortcut for `acsw use <name>`.
 
 ## Quick start: Two accounts
 
@@ -351,6 +351,28 @@ When you `cd` into a directory with `.acswrc`, the hook runs `acsw env --apply` 
 - Skips in CI environments (`$CI` set)
 - 5-second timeout prevents shell hangs
 - No-op if already on the correct profile
+
+### `acsw completions <shell>`
+
+Generate shell completions for tab completion of subcommands and profile names.
+
+**Setup:**
+
+```bash
+# zsh — add to ~/.zshrc
+source <(acsw completions zsh)
+
+# bash — add to ~/.bashrc
+eval "$(acsw completions bash)"
+
+# fish — add to ~/.config/fish/conf.d/acsw.fish
+acsw completions fish | source
+```
+
+After setup, tab completion works for:
+- `acsw <TAB>` — subcommands and profile names
+- `acsw use <TAB>` — profile names
+- `acsw remove <TAB>` — profile names
 
 ### `acsw help` or `acsw --help` or `acsw -h`
 

@@ -56,7 +56,7 @@ Replaced `guardClaudeRunning()` with `checkClaudeStatus()` which returns `'runni
 
 **Status:** Done
 
-Shared file utilities extracted to `src/lib/fs.ts`, profile paths to `src/lib/paths.ts`, snapshot I/O (`readProfileSnapshot`, `writeProfileSnapshot`) to `src/lib/snapshot.ts`. `profiles.ts` is now ~290 lines focused on profile operations. Snapshot functions are directly testable and importable.
+Shared file utilities extracted to `src/lib/fs.ts`, profile paths to `src/lib/paths.ts`, snapshot I/O (`readProfileSnapshot`, `writeProfileSnapshot`) to `src/lib/snapshot.ts`. `profiles.ts` is now focused on profile operations. Snapshot functions are directly testable and importable.
 
 **Remaining:** State backup logic for outgoing profiles could be isolated for grouped switching (future).
 
@@ -74,23 +74,24 @@ Dependent on Priority 2 architecture changes to unblock testable surfaces.
 
 **Status:** In progress
 
-141 tests across 12 files. Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
-- `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials (8 cases)
-- `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
-- `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
-- `listProfiles()` — display info extraction, empty state, sorted output (3 cases)
-- `getActiveProfile()` — active profile, no active set, missing from disk, no state file (4 cases)
-- `credentials/file.ts` — roundtrip, permissions, atomic write, parent dir creation, overwrite, null read, corrupted read, delete, null after delete, delete nonexistent (10 cases)
-- `config.ts` — `readOAuthAccount` (present, absent, missing file, corrupt) and `writeOAuthAccount` (add, replace, delete, missing file, corrupt) tested directly (9 cases)
-- `lib/env.ts` — `findAcswrc` (same dir, parent, nearest ancestor, no match), `readAcswrc` (valid, empty, ENOENT, bad JSON, array, null, string, non-string profile), `detectShell` (zsh, bash, fish, full path, unknown, empty, no-arg fallback), `generateHook` (zsh dedup, bash alias, fish PWD, unsupported, no leading newline, trailing newline) (25 cases)
-- `snapshot.ts` — read with credentials + identity, null identity, null credentials, write with identity, write deletes null identity, silent delete of nonexistent account.json (6 cases)
-- `paths.ts` — returns all 4 fields, accepts valid names, rejects dots/slashes/spaces/empty (6 cases)
-- `fs.ts` — `isENOENT` (7 cases), `readJsonOptional` (valid, missing, corrupt), `readJsonWithFallback` (valid, fallback, corrupt) (13 cases)
-- `providers/claude.ts` — snapshot read, snapshot null, restore write, restore null identity, displayInfo with/without identity, clear with credentials, clear when claude.json missing (8 cases via file backend)
-- `process.ts` — `isClaudeRunning` (no match, found, empty stdout, spawn throws), `checkClaudeStatus` (not-running, running, unknown) via `spyOn(Bun, 'spawn')` (7 cases)
-- `credentials/keychain.ts` — read JSON format, read hex format, read not found (stderr), read not found (exit 44), read unexpected exit, read unparseable JSON, read unparseable hex, write JSON format, write preserves hex format, write delete failure, write add failure, delete success, delete already gone, delete failure via `spyOn(Bun, 'spawn')` (14 cases)
-- Repair library — 14 tests via `RepairConfig` path injection
-- Mock providers — unit tests for `createMockProvider`, `createFailingProvider` (9 cases)
+Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
+- `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials
+- `addOAuthProfile()` — credentials/metadata creation, no-credentials error
+- `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile
+- `listProfiles()` — display info extraction, empty state, sorted output
+- `getActiveProfile()` — active profile, no active set, missing from disk, no state file
+- `credentials/file.ts` — roundtrip, permissions, atomic write, parent dir creation, overwrite, null read, corrupted read, delete, null after delete, delete nonexistent
+- `config.ts` — `readOAuthAccount` (present, absent, missing file, corrupt) and `writeOAuthAccount` (add, replace, delete, missing file, corrupt) tested directly
+- `lib/env.ts` — `findAcswrc` (same dir, parent, nearest ancestor, no match), `readAcswrc` (valid, empty, ENOENT, bad JSON, array, null, string, non-string profile), `detectShell` (zsh, bash, fish, full path, unknown, empty, no-arg fallback), `generateHook` (zsh dedup, bash alias, fish PWD, unsupported, no leading newline, trailing newline)
+- `snapshot.ts` — read with credentials + identity, null identity, null credentials, write with identity, write deletes null identity, silent delete of nonexistent account.json
+- `paths.ts` — returns all 4 fields, accepts valid names, rejects dots/slashes/spaces/empty
+- `fs.ts` — `isENOENT`, `readJsonOptional` (valid, missing, corrupt), `readJsonWithFallback` (valid, fallback, corrupt)
+- `providers/claude.ts` — snapshot read, snapshot null, restore write, restore null identity, displayInfo with/without identity, clear with credentials, clear when claude.json missing (via file backend)
+- `process.ts` — `isClaudeRunning` (no match, found, empty stdout, spawn throws), `checkClaudeStatus` (not-running, running, unknown) via `spyOn(Bun, 'spawn')`
+- `credentials/keychain.ts` — read JSON format, read hex format, read not found (stderr), read not found (exit 44), read unexpected exit, read unparseable JSON, read unparseable hex, write JSON format, write preserves hex format, write delete failure, write add failure, delete success, delete already gone, delete failure via `spyOn(Bun, 'spawn')`
+- `completions.ts` — `listProfileNames` (with profiles, skip missing meta, skip dotfiles, missing dir, empty, sorted), `generateBashCompletion`/`generateZshCompletion`/`generateFishCompletion` (subcommands, dynamic profile call, shell-specific patterns)
+- Repair library — tests via `RepairConfig` path injection
+- Mock providers — unit tests for `createMockProvider`, `createFailingProvider`
 
 **Untested modules:**
 - `env` command — `applyAcswrc` orchestration (already active no-op, switch success, switch failure exit code, Claude status gating, timeout). Still in the command file.
@@ -266,22 +267,20 @@ acsw add work-api --api-key "sk-ant-..."
 
 ### Shell completions
 
-**Status:** Planned
+**Status:** Done
 
 ```bash
-source <(acsw completions zsh)
-acsw use <TAB>  # completes profile names
+source <(acsw completions zsh)   # zsh
+eval "$(acsw completions bash)"  # bash
+acsw completions fish | source   # fish
 ```
 
-Support bash, zsh, and fish.
+Hand-written completion scripts in `src/lib/completions.ts` following the `gh`/`kubectl`/`docker` pattern. Static subcommand completion + dynamic profile name completion via `acsw completions --list-profiles` (lightweight readdir, no keychain/JSON parsing). The `completions` command is registered as a citty subcommand in `src/commands/completions.ts`.
 
-**Approach:** Hand-written `completions` subcommand that emits static shell scripts. This is the standard pattern used by `gh`, `kubectl`, `rustup`, and `docker`. The scripts complete subcommand names statically and call `acsw list --names` (a new flag returning bare profile names) for dynamic profile name completion. ~50–100 lines of code, zero dependencies.
-
-**Why not a library:** All evaluated options have significant drawbacks:
-- `tabtab` — abandoned (last release 2018), 2.5 MB, pulls in `inquirer`
-- `omelette` — zero deps and lightweight, but its dynamic model re-invokes the binary on every tab press, causing noticeable latency with compiled Bun binaries
-- `citty` has no built-in completion support
-- `cliffy` has completions but is a full framework replacement — disproportionate
+**Completion behavior:**
+- `acsw <TAB>` — subcommands + profile names (shortcut support)
+- `acsw use <TAB>` / `acsw remove <TAB>` — profile names
+- `acsw env --<TAB>` — flag completion (zsh/fish)
 
 **External option:** Contribute an autocomplete spec to `withfig/autocomplete` (now Amazon Q Developer CLI) as a separate zero-cost effort. Benefits macOS users who have it installed, no impact on the tool itself.
 
@@ -444,7 +443,7 @@ Evaluate competing tools for UX gaps and ideas worth stealing:
 The compiled Bun binary is 58 MB (vs ~3-5 MB for a Rust binary) with a 680ms cold start (vs ~1-2ms in Rust). A Rust rewrite would also give native `keyring-rs` access without the NAPI bridge question.
 
 **Trade-offs:**
-- Full rewrite of ~1,900 lines of TypeScript
+- Full rewrite of the TypeScript codebase
 - Lose `@clack/prompts` — Rust alternatives (`dialoguer`, `inquire`) are good but different
 - Slower iteration speed during development
 - Narrower contributor pool

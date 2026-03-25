@@ -16,11 +16,13 @@ src/
 │   ├── repair.ts               # Validate and fix profiles
 │   ├── env.ts                  # Shell hook integration (auto-switch on cd)
 │   ├── guard-claude.ts         # Shared Claude-running guard (UI-layer helper)
-│   └── switch-display.ts      # Shared post-switch display formatting
+│   ├── switch-display.ts      # Shared post-switch display formatting
+│   └── completions.ts         # Shell completion generation (zsh/bash/fish)
 └── lib/
     ├── types.ts                # Type definitions
     ├── constants.ts            # Paths, regex, provider config factory
     ├── profiles.ts             # Profile CRUD operations
+    ├── completions.ts          # Shell completion generators + listProfileNames
     ├── config.ts               # OAuth account in ~/.claude.json
     ├── env.ts                  # Shell hook logic (findAcswrc, readAcswrc, detectShell, generateHook)
     ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads, isENOENT)
