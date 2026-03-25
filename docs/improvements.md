@@ -74,7 +74,7 @@ Dependent on Priority 2 architecture changes to unblock testable surfaces.
 
 **Status:** In progress
 
-85 tests across 6 files. Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
+118 tests across 10 files. Integration tests use `ProfilesConfig` injection to redirect paths to a temp directory. Coverage includes:
 - `switchProfile()` — happy path, outgoing snapshot, re-switch active, non-oauth type, rollback, rollback failure, missing profile, missing credentials (8 cases)
 - `addOAuthProfile()` — credentials/metadata creation, no-credentials error (2 cases)
 - `removeProfile()` — directory deletion, provider clear on active, skip clear on inactive, missing profile (4 cases)
@@ -82,15 +82,18 @@ Dependent on Priority 2 architecture changes to unblock testable surfaces.
 - `getActiveProfile()` — active profile, no active set, missing from disk, no state file (4 cases)
 - `credentials/file.ts` — roundtrip, permissions, atomic write, parent dir creation, overwrite, null read, corrupted read, delete, null after delete, delete nonexistent (10 cases)
 - `config.ts` — `readOAuthAccount` (present, absent, missing file, corrupt) and `writeOAuthAccount` (add, replace, delete, missing file, corrupt) tested directly (9 cases)
-- `lib/env.ts` — `findAcswrc` (same dir, parent, nearest ancestor, no match), `readAcswrc` (valid, empty, ENOENT, bad JSON, array, null, string, non-string profile), `detectShell` (zsh, bash, fish, full path, unknown, empty, no-arg fallback), `generateHook` (zsh dedup, bash alias, fish PWD, unsupported, no leading newline, trailing newline) (22 cases)
+- `lib/env.ts` — `findAcswrc` (same dir, parent, nearest ancestor, no match), `readAcswrc` (valid, empty, ENOENT, bad JSON, array, null, string, non-string profile), `detectShell` (zsh, bash, fish, full path, unknown, empty, no-arg fallback), `generateHook` (zsh dedup, bash alias, fish PWD, unsupported, no leading newline, trailing newline) (25 cases)
+- `snapshot.ts` — read with credentials + identity, null identity, null credentials, write with identity, write deletes null identity, silent delete of nonexistent account.json (6 cases)
+- `paths.ts` — returns all 4 fields, accepts valid names, rejects dots/slashes/spaces/empty (6 cases)
+- `fs.ts` — `isENOENT` (7 cases), `readJsonOptional` (valid, missing, corrupt), `readJsonWithFallback` (valid, fallback, corrupt) (13 cases)
+- `providers/claude.ts` — snapshot read, snapshot null, restore write, restore null identity, displayInfo with/without identity, clear with credentials, clear when claude.json missing (8 cases via file backend)
 - Repair library — 14 tests via `RepairConfig` path injection
 - Mock providers — unit tests for `createMockProvider`, `createFailingProvider` (9 cases)
 
 **Untested modules:**
 - `env` command — `applyAcswrc` orchestration (already active no-op, switch success, switch failure exit code, Claude status gating, timeout). Still in the command file.
-- `process.ts` — `isClaudeRunning()` and `checkClaudeStatus()` have zero tests. Now testable since UI coupling was removed.
+- `process.ts` — `isClaudeRunning()` and `checkClaudeStatus()` have zero tests. Now testable since UI coupling was removed, but requires mocking `Bun.spawn` for `pgrep`.
 - `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
-- `providers/claude.ts` — zero tests. The provider integrates `CredentialStore` + `config.ts` but is only tested indirectly through profile integration tests with mock providers.
 - All command files (`add.ts`, `use.ts`, `list.ts`, `remove.ts`, `current.ts`, `repair.ts`) — no unit tests. Tested only through the lib-level integration tests.
 - `index.ts` — shortcut handler and interactive picker have zero tests.
 
