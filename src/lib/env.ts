@@ -1,7 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
+import type { ProfileInfo, ProfilesConfig, ProviderResolver } from './types';
+
 import { fileExists, isENOENT } from './fs';
+import { attemptSwitch } from './switch';
 
 export type AcswrcConfig = { profile?: string };
 
@@ -94,4 +97,66 @@ _acsw_autoload_hook
   }
 
   throw new Error(`Unsupported shell: ${shell}. Use zsh, bash, or fish.`);
+}
+
+export type ApplyResult =
+  | { status: 'switched'; profile: string; info: ProfileInfo }
+  | { status: 'already-active' }
+  | { status: 'no-rc' }
+  | { status: 'ci-skip' }
+  | { status: 'not-found'; profile: string }
+  | { status: 'claude-running' }
+  | { status: 'claude-unknown' }
+  | { status: 'invalid-rc'; path: string; message: string };
+
+/**
+ * Find and apply .acswrc for the given directory.
+ * Returns a discriminated union for all outcomes — caller handles UI.
+ * Throws on infrastructure failures (credential I/O, keychain, rollback).
+ */
+export async function applyAcswrc(
+  cwd: string,
+  resolve: ProviderResolver,
+  options?: { ci?: boolean; config?: ProfilesConfig },
+): Promise<ApplyResult> {
+  if (options?.ci ?? !!process.env.CI) {
+    return { status: 'ci-skip' };
+  }
+
+  const rcPath = await findAcswrc(cwd);
+  if (!rcPath) return { status: 'no-rc' };
+
+  const rc = await readAcswrc(rcPath);
+  if (!rc) return { status: 'no-rc' };
+
+  if (!rc.profile) {
+    return {
+      status: 'invalid-rc',
+      path: rcPath,
+      message: 'missing "profile" key',
+    };
+  }
+
+  const targetProfile = rc.profile.trim();
+  if (!targetProfile) {
+    return {
+      status: 'invalid-rc',
+      path: rcPath,
+      message: 'empty "profile" value',
+    };
+  }
+
+  const result = await attemptSwitch(targetProfile, resolve, options?.config);
+
+  if (result.status === 'not-found') {
+    return { status: 'not-found', profile: targetProfile };
+  }
+  if (result.status === 'already-active') {
+    return { status: 'already-active' };
+  }
+  if (result.status === 'blocked') {
+    return { status: result.reason };
+  }
+
+  return { status: 'switched', profile: targetProfile, info: result.profile };
 }
