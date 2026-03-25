@@ -126,7 +126,13 @@ export async function applyAcswrc(
   const rcPath = await findAcswrc(cwd);
   if (!rcPath) return { status: 'no-rc' };
 
-  const rc = await readAcswrc(rcPath);
+  let rc: AcswrcConfig | null;
+  try {
+    rc = await readAcswrc(rcPath);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { status: 'invalid-rc', path: rcPath, message: msg };
+  }
   if (!rc) return { status: 'no-rc' };
 
   if (!rc.profile) {
