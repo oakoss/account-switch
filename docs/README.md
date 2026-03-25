@@ -63,22 +63,16 @@ Read this when you want to:
 - Add tests for a module
 - Understand why code is structured a certain way
 
-### [improvements.md](./improvements.md)
+### [decisions/](./decisions/)
 
-**Future enhancements and roadmap**
+**Architecture Decision Records (ADRs)**
 
-Roadmap organized by priority:
-- Quick wins (done: ENOENT helper, dynamic import cleanup, double-snapshot fix, profilePaths unification)
-- Testability and architecture (switch consolidation, env.ts extraction, process decoupling)
-- Test coverage targets
-- Platform support (`@napi-rs/keyring`, Windows, Linux)
-- Distribution (pre-built binaries, Homebrew formula)
-- Features (API key profiles, shell completions, multi-provider)
+Key design decisions with context, alternatives considered, and consequences. See [decisions/README.md](./decisions/README.md) for the index.
 
 Read this if you want to:
-- See what's planned and in what order
-- Propose a feature
-- Contribute to development
+- Understand why the code is designed a certain way
+- Review past design trade-offs
+- Propose a new architectural decision
 
 ## Quick navigation
 
@@ -88,7 +82,7 @@ Read this if you want to:
 - See all commands → [usage.md](./usage.md#all-commands)
 - Troubleshoot an issue → [usage.md](./usage.md#troubleshooting)
 - Understand how it works → [architecture.md](./architecture.md)
-- See what's planned → [improvements.md](./improvements.md)
+- See design decisions → [decisions/](./decisions/)
 - Learn about security → [architecture.md](./architecture.md#security-considerations) or [usage.md](./usage.md#security-notes)
 
 ## Key concepts
@@ -148,7 +142,7 @@ Full walkthrough: [Quick start: Two accounts](./usage.md#quick-start-two-account
 Interested in contributing? Start by:
 
 1. Reading [architecture.md](./architecture.md) to understand the codebase
-2. Looking at [improvements.md](./improvements.md) for planned features
+2. Checking [decisions/](./decisions/) for design context
 3. Running tests with `pnpm test`
 4. Checking type safety with `pnpm typecheck`
 

@@ -23,6 +23,8 @@ The `env` command auto-switches profiles on `cd` by walking up directories for `
 
 Profile validation and repair logic lives in `src/lib/repair.ts`, accepting a `RepairConfig` for testability. The `repair` command is a thin display wrapper.
 
+Design decisions and their rationale are recorded as ADRs in [docs/decisions/](docs/decisions/).
+
 ### Key invariants
 
 - `switchProfile()` snapshots current credentials before overwriting and rolls back on failure
@@ -62,7 +64,7 @@ Key rules:
 
 ## Testing
 
-Tests use `bun:test`. See [docs/coding-standards.md](docs/coding-standards.md) for test patterns (config injection, mock providers, temp dirs, assertion conventions). Test coverage tracked in [docs/improvements.md](docs/improvements.md).
+Tests use `bun:test`. See [docs/coding-standards.md](docs/coding-standards.md) for test patterns (config injection, mock providers, temp dirs, assertion conventions).
 
 ## CI/CD
 

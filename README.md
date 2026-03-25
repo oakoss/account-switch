@@ -81,7 +81,7 @@ Now when you `cd` into that directory, acsw switches to the `work` profile autom
 
 ## Docs
 
-See [docs/](./docs/) for architecture, usage guide, and future improvements.
+See [docs/](./docs/) for architecture, usage guide, and design decisions.
 
 ## Development
 

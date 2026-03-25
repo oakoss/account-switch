@@ -66,11 +66,21 @@ Each commit should be one logical change. If you need "and" to connect two unrel
 
 | Change type | Groups with |
 |------------|-------------|
-| New feature | Its tests, doc updates, improvements.md status |
-| Refactor | Doc updates, improvements.md status |
+| New feature | Its tests, doc updates |
+| Refactor | Doc updates |
 | Bug fix | Its test, doc update |
-| Tests for existing code | improvements.md test tracking |
+| Tests for existing code | Related doc changes |
 | New/reorganized docs | Related doc changes it triggers (CLAUDE.md, README.md) |
+
+### When to write an ADR
+
+Architectural decisions get an ADR in `docs/decisions/`. Write one when:
+
+- **Adding or rejecting a dependency** — captures the evaluation so it doesn't get repeated
+- **Introducing a new abstraction** — captures the interface design and alternatives
+- **Changing how data is stored** — captures migration path and trade-offs
+
+Use the [template](docs/decisions/000-template.md). Keep it concise.
 
 ### When to create a changeset
 
