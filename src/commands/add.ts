@@ -1,4 +1,5 @@
 import { createProviderConfig } from '@lib/constants';
+import { checkClaudeStatus } from '@lib/process';
 import {
   validateProfileName,
   profileExists,
@@ -7,8 +8,6 @@ import {
 import { createProvider, createDefaultProvider } from '@lib/providers/registry';
 import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
-
-import { guardClaudeRunning } from './guard-claude';
 
 export default defineCommand({
   meta: { name: 'add', description: 'Save current session as a profile' },
@@ -34,7 +33,17 @@ export default defineCommand({
     }
 
     ui.blank();
-    await guardClaudeRunning();
+    const status = await checkClaudeStatus();
+    if (status === 'running' || status === 'unknown') {
+      if (status === 'running') {
+        ui.warn('Claude Code appears to be running.');
+        ui.warn('Adding a profile while Claude is active may cause issues.');
+      } else {
+        ui.warn('Could not determine if Claude Code is running.');
+      }
+      const ok = await ui.confirm('Continue anyway?');
+      if (!ok) process.exit(0);
+    }
 
     const config = createProviderConfig();
     const provider =

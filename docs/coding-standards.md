@@ -23,8 +23,7 @@ Patterns and conventions used across the `acsw` codebase. See also [CLAUDE.md](.
 
 Reusable UI-layer logic lives in `src/commands/` (not `src/lib/`):
 
-- `guard-claude.ts` — Claude-running check with prompt; accepts `onDecline` callback for callers needing `return` instead of `process.exit(0)`
-- `switch-display.ts` — consistent post-switch display (name, subscription type, email, orgName)
+- `switch-handler.ts` — maps `SwitchResult` from `@lib/switch` to interactive UI (blocked-state prompts, display); accepts `onDecline` callback for callers needing `return` instead of `process.exit(0)`
 
 ### Non-interactive vs interactive paths
 
@@ -67,7 +66,7 @@ beforeEach(async () => {
 
 - `node:` protocol for Node builtins: `import { join } from 'node:path'`
 - `@lib/` alias for cross-directory imports into lib: `import { switchProfile } from '@lib/profiles'`
-- `@commands/` alias for imports from outside the commands directory (e.g., dynamic subcommand loading in `index.ts`): `await import('@commands/guard-claude')`
+- `@commands/` alias for imports from outside the commands directory (e.g., dynamic subcommand loading in `index.ts`): `await import('@commands/switch-handler')`
 - `./` relative imports for same-directory siblings: `import { isENOENT } from './fs'`
 - Top-level static imports by default; dynamic imports only for intentional lazy loading (subcommands in `index.ts`)
 

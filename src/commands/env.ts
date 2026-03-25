@@ -1,8 +1,7 @@
 import { createProviderConfig } from '@lib/constants';
 import { detectShell, findAcswrc, generateHook, readAcswrc } from '@lib/env';
-import { checkClaudeStatus } from '@lib/process';
-import { readState, switchProfile } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
+import { attemptSwitch } from '@lib/switch';
 import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
 
@@ -31,27 +30,30 @@ async function applyAcswrcInner(): Promise<void> {
     return;
   }
 
-  const state = await readState();
-  if (state.active === targetProfile) return;
-
-  const status = await checkClaudeStatus();
-  if (status === 'unknown') {
-    ui.warn(
-      'acsw: could not determine if Claude Code is running, skipping auto-switch',
-    );
-    return;
-  }
-  if (status === 'running') {
-    ui.warn('acsw: Claude Code is running, skipping auto-switch');
-    return;
-  }
-
   const config = createProviderConfig();
   const resolve = createResolver(config);
-  const result = await switchProfile(targetProfile, resolve);
+  const result = await attemptSwitch(targetProfile, resolve);
+
+  if (result.status === 'not-found') {
+    ui.warn(`acsw: profile "${targetProfile}" not found, skipping auto-switch`);
+    return;
+  }
+
+  if (result.status === 'already-active') return;
+
+  if (result.status === 'blocked') {
+    if (result.reason === 'claude-running') {
+      ui.warn('acsw: Claude Code is running, skipping auto-switch');
+    } else {
+      ui.warn(
+        'acsw: could not determine if Claude Code is running, skipping auto-switch',
+      );
+    }
+    return;
+  }
 
   ui.info(
-    `acsw: switched to ${ui.bold(targetProfile)}  ${ui.formatSubscription(result.subscriptionType)}`,
+    `acsw: switched to ${ui.bold(targetProfile)}  ${ui.formatSubscription(result.profile.subscriptionType)}`,
   );
 }
 

@@ -1,11 +1,10 @@
 import { createProviderConfig } from '@lib/constants';
-import { profileExists, switchProfile, readState } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
+import { attemptSwitch } from '@lib/switch';
 import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
 
-import { guardClaudeRunning } from './guard-claude';
-import { displaySwitchResult } from './switch-display';
+import { handleSwitchResult } from './switch-handler';
 
 export default defineCommand({
   meta: { name: 'use', description: 'Switch to a profile' },
@@ -13,26 +12,10 @@ export default defineCommand({
     name: { type: 'positional', description: 'Profile name', required: true },
   },
   async run({ args }) {
-    if (!(await profileExists(args.name))) {
-      ui.error(`Profile "${args.name}" not found.`);
-      ui.hint("Run 'acsw list' to see your profiles.");
-      process.exit(1);
-    }
-
-    const state = await readState();
-    if (state.active === args.name) {
-      ui.blank();
-      ui.success(`Already on ${ui.bold(args.name)}`);
-      ui.blank();
-      return;
-    }
-
-    ui.blank();
-    await guardClaudeRunning();
-
     const resolve = createResolver(createProviderConfig());
-    const profile = await switchProfile(args.name, resolve);
-    displaySwitchResult(args.name, profile);
+    const result = await attemptSwitch(args.name, resolve);
+    ui.blank();
+    await handleSwitchResult(args.name, result, resolve);
     ui.blank();
   },
 });

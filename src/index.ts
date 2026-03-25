@@ -3,6 +3,7 @@
 import { createProviderConfig } from '@lib/constants';
 import { listProfiles } from '@lib/profiles';
 import { createResolver } from '@lib/providers/registry';
+import { attemptSwitch } from '@lib/switch';
 import * as ui from '@lib/ui';
 import { defineCommand, runMain } from 'citty';
 
@@ -77,24 +78,13 @@ const main = defineCommand({
 
     if (!selected) return;
 
-    const profile = profiles.find((p) => p.name === selected);
-    if (profile?.isActive) {
-      ui.success(`Already on ${ui.bold(selected)}`);
-      ui.blank();
-      return;
-    }
-
-    const { guardClaudeRunning } = await import('@commands/guard-claude');
+    const result = await attemptSwitch(selected, resolve);
     let declined = false;
-    await guardClaudeRunning(() => {
+    const { handleSwitchResult } = await import('@commands/switch-handler');
+    await handleSwitchResult(selected, result, resolve, () => {
       declined = true;
     });
     if (declined) return;
-
-    const { switchProfile } = await import('@lib/profiles');
-    const { displaySwitchResult } = await import('@commands/switch-display');
-    const result = await switchProfile(selected, resolve);
-    displaySwitchResult(selected, result);
     ui.blank();
   },
 });
@@ -102,36 +92,30 @@ const main = defineCommand({
 // Handle `acsw <profile-name>` shortcut before citty processes args
 const firstArg = process.argv[2];
 if (firstArg && !firstArg.startsWith('-') && !KNOWN_COMMANDS.has(firstArg)) {
-  const { profileExists, readState, switchProfile } =
-    await import('@lib/profiles');
+  const { profileExists } = await import('@lib/profiles');
 
   let exists = false;
   try {
     exists = await profileExists(firstArg);
-  } catch {
-    // Invalid name (e.g., dots, slashes) — fall through to citty
+  } catch (error) {
+    // profilePaths throws for invalid names — fall through to citty
+    const isNameError =
+      error instanceof Error &&
+      error.message.startsWith('Invalid profile name');
+    if (!isNameError) {
+      ui.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
   }
 
   if (exists) {
     try {
-      const state = await readState();
-
-      if (state.active === firstArg) {
-        ui.blank();
-        ui.success(`Already on ${ui.bold(firstArg)}`);
-        ui.blank();
-      } else {
-        const { guardClaudeRunning } = await import('@commands/guard-claude');
-        const { displaySwitchResult } =
-          await import('@commands/switch-display');
-        ui.blank();
-        await guardClaudeRunning();
-
-        const resolve = createResolver(createProviderConfig());
-        const profile = await switchProfile(firstArg, resolve);
-        displaySwitchResult(firstArg, profile);
-        ui.blank();
-      }
+      const resolve = createResolver(createProviderConfig());
+      const result = await attemptSwitch(firstArg, resolve);
+      const { handleSwitchResult } = await import('@commands/switch-handler');
+      ui.blank();
+      await handleSwitchResult(firstArg, result, resolve);
+      ui.blank();
     } catch (error) {
       ui.error(error instanceof Error ? error.message : String(error));
       process.exit(1);
