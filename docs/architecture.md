@@ -21,6 +21,7 @@ src/
     ├── constants.ts            # Paths, regex, provider config factory
     ├── profiles.ts             # Profile CRUD operations
     ├── config.ts               # OAuth account in ~/.claude.json
+    ├── env.ts                  # Shell hook logic (findAcswrc, readAcswrc, detectShell, generateHook)
     ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads, isENOENT)
     ├── paths.ts                # Shared profilePaths() for profile directory layout
     ├── process.ts              # Process detection (is Claude running)

@@ -51,19 +51,9 @@ The paths have already diverged in visible ways: `use.ts` displays `organization
 
 ### Extract `env.ts` logic into testable lib module
 
-**Status:** Planned
+**Status:** Done
 
-`src/commands/env.ts` contains 5 distinct concerns, all private to the citty command:
-
-1. **`findAcswrc`** — directory walk (ancestor search for `.acswrc`)
-2. **`readAcswrc`** — JSON parsing with validation (structure, types, ENOENT race)
-3. **`applyAcswrc`** — config application (reads state, checks claude running, switches profile)
-4. **`detectShell`** — shell detection from `$SHELL`
-5. **`generateHook`** — shell hook code generation (zsh/bash/fish)
-
-None of these can be tested without executing the command. The test coverage section below lists ~15 test cases that are all blocked by this structure.
-
-**Fix:** Move `findAcswrc`, `readAcswrc`, `detectShell`, and `generateHook` to `src/lib/env.ts` as exported functions. Keep `applyAcswrc` either in the command (thin orchestration) or split it into a testable core that accepts dependencies. The command file becomes a thin shell over the lib.
+Moved `findAcswrc`, `readAcswrc`, `detectShell`, and `generateHook` to `src/lib/env.ts` as exported functions. `applyAcswrc` remains in the command file as thin orchestration. All 4 extracted functions are now directly testable.
 
 ### Decouple `guardClaudeRunning` from UI
 
@@ -105,7 +95,8 @@ Integration tests use `ProfilesConfig` injection to redirect paths to a temp dir
 - Repair library — 14 tests via `RepairConfig` path injection
 
 **Untested modules:**
-- `env` command — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `applyAcswrc` (already active no-op, switch success, switch failure exit code, isClaudeRunning gating), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell — blocked by all logic being private to the command file (see "Extract env.ts logic" above)
+- `lib/env.ts` — `findAcswrc` directory walk, `readAcswrc` validation (bad JSON, non-object, missing profile key, ENOENT race), `detectShell` (zsh/bash/fish detection, unknown shell error), `generateHook` output for each shell. Now exported and testable.
+- `env` command — `applyAcswrc` orchestration (already active no-op, switch success, switch failure exit code, Claude status gating, timeout). Still in the command file.
 - `process.ts` — `isClaudeRunning()` and `checkClaudeStatus()` have zero tests. Now testable since UI coupling was removed.
 - `credentials/keychain.ts` — zero tests. Requires mocking `Bun.spawn` for the `security` CLI calls.
 - `providers/claude.ts` — zero tests. The provider integrates `CredentialStore` + `config.ts` but is only tested indirectly through profile integration tests with mock providers.
