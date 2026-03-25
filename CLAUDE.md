@@ -74,3 +74,26 @@ Tests use `bun:test`. See [docs/coding-standards.md](docs/coding-standards.md) f
 - **Release:** `.github/workflows/release.yml` — changesets action creates version PRs, publishes to npm via OIDC on merge
 - **CodeQL:** `.github/workflows/codeql.yml` — security scanning (JS/TS + Actions)
 - **Hooks:** lefthook runs oxlint, oxfmt, markdownlint on pre-commit and commitlint on commit-msg
+
+## Workflow
+
+Follow this workflow for every task. Never commit without completing all steps.
+
+1. **Review the task** — if it maps to a Trekker task, check for context, dependencies, and blockers
+2. **Research the codebase** — read relevant files, check ADRs for design context
+3. **Create a plan** for non-trivial work, get user alignment if needed
+4. **Write tests first** using `/tdd` (red-green-refactor cycle)
+5. **Implement** until tests pass
+6. **Update all affected docs and tracking** — before reviews so docs get reviewed too. Verify bulk edits didn't break formatting.
+   - Trekker: mark tasks in-progress/completed
+   - ADRs: if implementing a Proposed ADR, flip to Accepted. If contradicting an existing ADR, mark Superseded and create a new one. If completing work born from an ADR, verify it still reflects reality.
+   - Other docs: architecture.md, README, etc. as needed
+7. **If user-facing change**, create changeset now (you know what the change is at this point)
+8. **Run checks:** `pnpm format && pnpm lint:fix && pnpm test && pnpm typecheck && pnpm lint:md`
+9. **Run reviews** — code-reviewer and silent-failure-hunter agents; fix any issues found
+10. **If docs or comments changed:** run `/de-slopify` and `/technical-docs` as final polish
+11. **If changes were made after review**, re-run checks and reviews on the final state. Treat each review as fresh — it may catch things prior passes missed.
+12. **Check commit grouping** — is this one logical change? If "and" connects unrelated things, split per CONTRIBUTING.md rules.
+13. **Present summary** and wait for user to say "commit" before committing
+
+Never commit proactively. Always complete the full review cycle and present the ready state to the user, then wait for their go-ahead.
