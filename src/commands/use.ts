@@ -5,6 +5,7 @@ import * as ui from '@lib/ui';
 import { defineCommand } from 'citty';
 
 import { guardClaudeRunning } from './guard-claude';
+import { displaySwitchResult } from './switch-display';
 
 export default defineCommand({
   meta: { name: 'use', description: 'Switch to a profile' },
@@ -30,18 +31,8 @@ export default defineCommand({
     await guardClaudeRunning();
 
     const resolve = createResolver(createProviderConfig());
-
     const profile = await switchProfile(args.name, resolve);
-
-    ui.success(
-      `Switched to ${ui.bold(args.name)}  ${ui.formatSubscription(profile.subscriptionType)}`,
-    );
-    if (profile.email) {
-      ui.hint(`  ${profile.email}`);
-    }
-    if (profile.organizationName) {
-      ui.hint(`  ${profile.organizationName}`);
-    }
+    displaySwitchResult(args.name, profile);
     ui.blank();
   },
 });

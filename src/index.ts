@@ -90,13 +90,9 @@ const main = defineCommand({
     if (declined) return;
 
     const { switchProfile } = await import('@lib/profiles');
+    const { displaySwitchResult } = await import('@commands/switch-display');
     const result = await switchProfile(selected, resolve);
-    ui.success(
-      `Switched to ${ui.bold(selected)}  ${ui.formatSubscription(result.subscriptionType)}`,
-    );
-    if (result.email) {
-      ui.hint(`  ${result.email}`);
-    }
+    displaySwitchResult(selected, result);
     ui.blank();
   },
 });
@@ -104,14 +100,18 @@ const main = defineCommand({
 // Handle `acsw <profile-name>` shortcut before citty processes args
 const firstArg = process.argv[2];
 if (firstArg && !firstArg.startsWith('-') && !KNOWN_COMMANDS.has(firstArg)) {
-  const config = createProviderConfig();
-  const resolve = createResolver(config);
-  const profiles = await listProfiles(resolve);
-  const match = profiles.find((p) => p.name === firstArg);
+  const { profileExists, readState, switchProfile } =
+    await import('@lib/profiles');
 
-  if (match) {
+  let exists = false;
+  try {
+    exists = await profileExists(firstArg);
+  } catch {
+    // Invalid name (e.g., dots, slashes) — fall through to citty
+  }
+
+  if (exists) {
     try {
-      const { switchProfile, readState } = await import('@lib/profiles');
       const state = await readState();
 
       if (state.active === firstArg) {
@@ -120,16 +120,14 @@ if (firstArg && !firstArg.startsWith('-') && !KNOWN_COMMANDS.has(firstArg)) {
         ui.blank();
       } else {
         const { guardClaudeRunning } = await import('@commands/guard-claude');
+        const { displaySwitchResult } =
+          await import('@commands/switch-display');
         ui.blank();
         await guardClaudeRunning();
 
+        const resolve = createResolver(createProviderConfig());
         const profile = await switchProfile(firstArg, resolve);
-        ui.success(
-          `Switched to ${ui.bold(firstArg)}  ${ui.formatSubscription(profile.subscriptionType)}`,
-        );
-        if (profile.email) {
-          ui.hint(`  ${profile.email}`);
-        }
+        displaySwitchResult(firstArg, profile);
         ui.blank();
       }
     } catch (error) {

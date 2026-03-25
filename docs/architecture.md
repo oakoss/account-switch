@@ -15,7 +15,8 @@ src/
 │   ├── current.ts              # Show active profile
 │   ├── repair.ts               # Validate and fix profiles
 │   ├── env.ts                  # Shell hook integration (auto-switch on cd)
-│   └── guard-claude.ts         # Shared Claude-running guard (UI-layer helper)
+│   ├── guard-claude.ts         # Shared Claude-running guard (UI-layer helper)
+│   └── switch-display.ts      # Shared post-switch display formatting
 └── lib/
     ├── types.ts                # Type definitions
     ├── constants.ts            # Paths, regex, provider config factory

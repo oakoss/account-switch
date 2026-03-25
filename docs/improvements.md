@@ -36,18 +36,9 @@ Structural changes that unblock testing and reduce duplication.
 
 ### Consolidate switch-and-display logic
 
-**Status:** Planned
+**Status:** Done
 
-"Check active → guard claude → switch → format result → display" lives in four separate locations:
-
-1. `src/index.ts` interactive picker (lines 46–97)
-2. `src/index.ts` shortcut handler (lines 100–138) — nearly duplicates `use.ts`
-3. `src/commands/use.ts`
-4. `src/commands/env.ts` `applyAcswrc()` — a non-interactive variant
-
-Each reimplements the same flow with minor variations (interactive vs non-interactive, shortcut vs subcommand). The shortcut handler (#2) is the worst offender: it bypasses citty entirely, implements its own error handling with `try/catch` + `process.exit(1)`, calls `readState()` separately to check active status, and duplicates all the display formatting from `use.ts`. A shared `performSwitch(name, resolve, opts)` returning `ProfileInfo` would collapse the duplication and make it testable in one place.
-
-The paths have already diverged in visible ways: `use.ts` displays `organizationName`, while the shortcut handler and interactive picker silently omit it. Currently none of the four switch paths have any test coverage.
+Extracted `displaySwitchResult(name, profile)` to `src/commands/switch-display.ts`. All three interactive switch paths (`use.ts`, picker, shortcut) use it, fixing the `organizationName` display divergence. The shortcut handler in `index.ts` was simplified: uses `profileExists()` instead of `listProfiles()` (avoids reading all N profiles). The `env.ts` non-interactive path keeps its own display (prefixed, no email/orgName).
 
 ### Extract `env.ts` logic into testable lib module
 
