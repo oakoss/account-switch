@@ -1,7 +1,6 @@
-import type { SwitchResult } from '@lib/switch';
 import type { ProfileInfo, ProfilesConfig, ProviderResolver } from '@lib/types';
 
-import { switchProfile } from '@lib/profiles';
+import { switchProfile, type SwitchResult } from '@lib/switch';
 import * as ui from '@lib/ui';
 
 function displaySwitch(name: string, profile: ProfileInfo): void {

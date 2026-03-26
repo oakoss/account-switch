@@ -65,7 +65,7 @@ beforeEach(async () => {
 ## Import conventions
 
 - `node:` protocol for Node builtins: `import { join } from 'node:path'`
-- `@lib/` alias for cross-directory imports into lib: `import { switchProfile } from '@lib/profiles'`
+- `@lib/` alias for cross-directory imports into lib: `import { switchProfile } from '@lib/switch'`
 - `@commands/` alias for imports from outside the commands directory (e.g., dynamic subcommand loading in `index.ts`): `await import('@commands/switch-handler')`
 - `./` relative imports for same-directory siblings: `import { isENOENT } from './fs'`
 - Top-level static imports by default; dynamic imports only for intentional lazy loading (subcommands in `index.ts`)

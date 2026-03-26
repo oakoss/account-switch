@@ -2,12 +2,12 @@ import type { ProfilesConfig, Provider } from '@lib/types';
 
 import {
   addOAuthProfile,
-  switchProfile,
   removeProfile,
   listProfiles,
   getActiveProfile,
   readState,
 } from '@lib/profiles';
+import { switchProfile } from '@lib/switch';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { mkdtemp, rm, stat, readdir, mkdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
