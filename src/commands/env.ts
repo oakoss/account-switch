@@ -45,7 +45,11 @@ async function applyWithTimeout(): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const inner = runApply().then(() => 'ok' as const);
-    inner.catch(() => {});
+    inner.catch((error) => {
+      // Only fires if timeout won the race; outer catch handles normal errors
+      const msg = error instanceof Error ? error.message : String(error);
+      ui.warn(`acsw: auto-switch error (after timeout): ${msg}`);
+    });
 
     const result = await Promise.race([
       inner,

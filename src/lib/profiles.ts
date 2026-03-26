@@ -242,8 +242,17 @@ export async function addOAuthProfile(
   } catch (error) {
     try {
       await rm(dir, { recursive: true });
-    } catch {
-      /* cleanup best-effort */
+    } catch (cleanupError) {
+      const originalMsg =
+        error instanceof Error ? error.message : String(error);
+      const cleanupMsg =
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError);
+      throw new Error(
+        `Failed to create profile: ${originalMsg}. ` +
+          `Cleanup also failed (${cleanupMsg}). Run 'acsw repair' to fix.`,
+      );
     }
     throw error;
   }
@@ -290,7 +299,8 @@ export async function switchProfile(
   try {
     snapshot = await readProfileSnapshot(config, name);
   } catch {
-    // Non-fatal: switch succeeded, just can't read back display info
+    // Non-fatal: switch succeeded but can't read back display info.
+    // User sees profile name without email/subscription details.
   }
 
   return buildProfileInfo(name, targetMeta, true, snapshot, provider);

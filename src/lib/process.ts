@@ -8,6 +8,8 @@ export async function isClaudeRunning(): Promise<boolean | null> {
     if (exitCode === 1) return false;
     return stdout.length > 0;
   } catch {
+    // pgrep may not be installed (ENOENT) or may lack permissions (EACCES).
+    // Return null so callers treat it as unknown status.
     return null;
   }
 }
