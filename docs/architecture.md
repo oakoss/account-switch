@@ -169,7 +169,7 @@ When you run `acsw use <name>`:
    └─ Return early if state.active === name
 
 3. Check for running Claude
-   └─ Use pgrep -xi claude (exact match, case-insensitive)
+   └─ Use ProcessDetector (pgrep on macOS/Linux, tasklist on Windows)
    └─ Warn user if found, or if check failed (null result)
 
 4. Save current profile
@@ -277,10 +277,10 @@ Exports: `success()`, `error()`, `warn()`, `info()`, `hint()`, `blank()`, `log()
 
 ### `process.ts`
 
-Process detection for safety checks:
+Process detection for safety checks via `ProcessDetector` interface:
 
-- `isClaudeRunning()` — Uses `pgrep -xi claude` (exact match, case-insensitive). Returns `boolean | null` (null when detection fails)
-- `checkClaudeStatus()` — Returns `ClaudeStatus` (`'running' | 'not-running' | 'unknown'`). No UI; callers decide how to present. Interactive commands use `guardClaudeRunning()` from `src/commands/guard-claude.ts`
+- `createProcessDetector(platform?)` — Factory selecting platform backend: `pgrep` (macOS/Linux) or `tasklist` (Windows)
+- `checkClaudeStatus(detector?)` — Returns `ClaudeStatus` (`'running' | 'not-running' | 'unknown'`). Accepts optional detector for DI in tests. No UI; callers decide how to present
 
 ### `repair.ts`
 

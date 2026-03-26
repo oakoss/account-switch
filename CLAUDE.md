@@ -33,6 +33,7 @@ Design decisions and their rationale are recorded as ADRs in [docs/decisions/](d
 - All JSON writes use atomic temp-file-then-rename pattern
 - Credential files are `chmod 600`
 - Process spawning via `exec()` consumes stdout/stderr before resolving to avoid pipe deadlock
+- Process detection uses `ProcessDetector` interface with platform backends (pgrep for macOS/Linux, tasklist for Windows)
 - Provider `clear()` runs before state updates to avoid corrupted state on failure
 
 ## Commands
