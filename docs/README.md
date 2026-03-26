@@ -41,7 +41,7 @@ Deep dive into the codebase:
 
 - Project structure and module responsibilities
 - Data storage layout (`~/.acsw/` directory structure)
-- Credential storage (macOS Keychain vs file-based)
+- Credential storage (system keyring vs file-based)
 - Switching algorithm step by step
 - Security considerations
 
@@ -120,7 +120,7 @@ When you switch profiles, the old profile's credentials are saved, and the new p
 
 Switching only touches:
 
-- **Credentials** (OAuth tokens in Keychain or file)
+- **Credentials** (OAuth tokens in system keyring or file)
 - **Account metadata** (email, organization)
 
 Never touches:
@@ -130,12 +130,12 @@ Never touches:
 
 ### Cross-platform storage
 
-**macOS:**
+**macOS / Windows:**
 
-- Credentials stored in system Keychain (encrypted, locked with screen)
+- Credentials stored in system keyring (macOS Keychain / Windows Credential Vault)
 - Account metadata in files (mode 600)
 
-**Linux / Windows:**
+**Linux:**
 
 - All data in files (mode 600, read/write by user only)
 - No native encryption (depends on disk encryption)

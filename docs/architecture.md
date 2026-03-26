@@ -33,7 +33,7 @@ src/
     ├── credentials.ts          # CredentialStore factory (selects backend by platform)
     ├── credentials/
     │   ├── types.ts            # CredentialStore interface
-    │   ├── keychain.ts         # macOS Keychain backend (via security CLI)
+    │   ├── keyring.ts          # System keyring backend (macOS/Windows via @napi-rs/keyring)
     │   └── file.ts             # File-based backend (~/.claude/.credentials.json)
     ├── providers/
     │   ├── claude.ts           # Claude provider (snapshot/restore credentials + identity)
@@ -82,15 +82,15 @@ Claude Code stores authentication data in two locations:
 
 Credentials are handled differently by platform to maximize security:
 
-#### macOS (Keychain)
+#### macOS / Windows (System keyring via @napi-rs/keyring)
 
 - Service name: `Claude Code-credentials`
-- Account name: `$USER` (from environment)
+- Account name: `$USER` (falls back to `$USERNAME`)
 - Value: JSON (modern) or hex-encoded JSON (legacy, auto-detected)
-- Benefits: Encrypted by OS, auto-locks with screen
-- Limitation: System-specific, won't transfer to other Macs
+- macOS: Encrypted in Keychain, auto-locks with screen
+- Windows: Stored in Credential Vault, encrypted by DPAPI
 
-#### Linux / Windows (File-based)
+#### Linux (File-based)
 
 - Location: `~/.claude/.credentials.json`
 - Permissions: `600` (read/write by user only)
@@ -173,13 +173,13 @@ When you run `acsw use <name>`:
    └─ Warn user if found, or if check failed (null result)
 
 4. Save current profile
-   └─ Read live credentials from Keychain/file
+   └─ Read live credentials from keyring/file
    └─ Read live oauthAccount from ~/.claude.json
    └─ Write both to ~/.acsw/<active>/*
 
 5. Load target profile
    ├─ Read ~/.acsw/<name>/credentials.json
-   ├─ Write to Keychain (macOS) or ~/.claude/.credentials.json (Linux/Windows)
+   ├─ Write to system keyring (macOS/Windows) or ~/.claude/.credentials.json (Linux)
    ├─ Read ~/.acsw/<name>/account.json
    ├─ Write oauthAccount to ~/.claude.json
    └─ Update state.json with new active profile
@@ -232,8 +232,8 @@ type CredentialStore = {
 
 `credentials.ts` exports `createCredentialStore(config)` which selects the backend based on `ProviderConfig.platform`:
 
-- **macOS (`darwin`):** `keychain.ts` — shells out to `security` CLI for Keychain access
-- **Other platforms:** `file.ts` — reads/writes `~/.claude/.credentials.json` with mode 600
+- **macOS/Windows (`darwin`/`win32`):** `keyring.ts` — system keyring via `@napi-rs/keyring`
+- **Linux:** `file.ts` — reads/writes `~/.claude/.credentials.json` with mode 600
 
 ### `providers/claude.ts`
 
@@ -425,13 +425,13 @@ Common errors:
 - `No OAuth credentials found` — Claude not logged in
 - `Profile name is required` — Empty name argument
 - `Invalid name. Use letters, numbers, hyphens, or underscores.` — Regex fail
-- `Failed to write credentials to macOS Keychain` — Keychain operation failed
+- `Failed to write credentials to keyring` — Keyring operation failed
 
 ## Security considerations
 
 ### Credential protection
 
-1. **In-transit**: Credentials stored in macOS Keychain (encrypted) or file (mode 600)
+1. **In-transit**: Credentials stored in system keyring (macOS/Windows, encrypted) or file (Linux, mode 600)
 2. **Atomic writes**: Temp file + atomic rename prevents partial corruption
 3. **Process safety**: Warns if Claude Code is running (credentials in memory)
 
@@ -439,7 +439,7 @@ Common errors:
 
 - Settings, chat history, plugins, extensions never touched
 - Only swaps `oauthAccount` field in `~/.claude.json`
-- Only swaps credentials in Keychain or file
+- Only swaps credentials in system keyring or file
 - All other application state preserved
 
 ### Profile isolation

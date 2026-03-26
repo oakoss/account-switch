@@ -7,7 +7,7 @@ CLI tool for switching between Claude Code OAuth accounts. Package name: `accoun
 Credential storage is abstracted in two layers:
 
 - **`Provider`** (`src/lib/providers/`) — high-level interface for snapshot/restore of full profile state (credentials + identity). The profile layer (`profiles.ts`) orchestrates switching via opaque snapshots without knowing provider-specific storage details.
-- **`CredentialStore`** (`src/lib/credentials/types.ts`) — low-level interface used _within_ providers for platform-specific credential I/O. Backends: `keychain.ts` (macOS via `security` CLI) and `file.ts` (Linux via `~/.claude/.credentials.json`). Selected based on `ProviderConfig.platform`.
+- **`CredentialStore`** (`src/lib/credentials/types.ts`) — low-level interface used _within_ providers for platform-specific credential I/O. Backends: `keyring.ts` (macOS/Windows via `@napi-rs/keyring`) and `file.ts` (Linux via `~/.claude/.credentials.json`). Selected based on `ProviderConfig.platform`.
 
 The Claude provider (`providers/claude.ts`) swaps two things:
 
@@ -32,7 +32,7 @@ Design decisions and their rationale are recorded as ADRs in [docs/decisions/](d
 - `profilePaths()` validates names against `PROFILE_NAME_REGEX` to prevent path traversal
 - All JSON writes use atomic temp-file-then-rename pattern
 - Credential files are `chmod 600`
-- Keychain reads consume stdout/stderr before awaiting exit to avoid pipe deadlock
+- Process spawning via `exec()` consumes stdout/stderr before resolving to avoid pipe deadlock
 - Provider `clear()` runs before state updates to avoid corrupted state on failure
 
 ## Commands
@@ -62,7 +62,7 @@ Key rules:
 - **Lib purity:** No `process.exit()` or UI calls in `src/lib/` (exception: `ui/clack.ts` exits 130 on cancel). Commands own presentation and exit codes.
 - **UI abstraction:** Output via `OutputAdapter`/`PromptAdapter` in `src/lib/ui/types.ts`; the `@lib/ui` facade wires `@clack/prompts` but can be swapped
 - **Testability:** Lib functions accept optional config params with production defaults for DI in tests.
-- **Minimal deps** — only citty and `@clack/prompts`
+- **Minimal deps** — only citty, `@clack/prompts`, and `@napi-rs/keyring`
 
 ## Testing
 

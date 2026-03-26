@@ -112,7 +112,7 @@ export type ApplyResult =
 /**
  * Find and apply .acswrc for the given directory.
  * Returns a discriminated union for all outcomes — caller handles UI.
- * Throws on infrastructure failures (credential I/O, keychain, rollback).
+ * Throws on infrastructure failures (credential I/O, keyring, rollback).
  */
 export async function applyAcswrc(
   cwd: string,

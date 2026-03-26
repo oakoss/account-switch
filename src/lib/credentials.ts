@@ -4,13 +4,13 @@ import type { CredentialStore } from './credentials/types';
 import type { ProviderConfig } from './types';
 
 import { createFileStore } from './credentials/file';
-import { createKeychainStore } from './credentials/keychain';
+import { createKeyringStore } from './credentials/keyring';
 
 export type { CredentialStore } from './credentials/types';
 
 export function createCredentialStore(config: ProviderConfig): CredentialStore {
-  if (config.platform === 'darwin') {
-    return createKeychainStore();
+  if (config.platform === 'darwin' || config.platform === 'win32') {
+    return createKeyringStore();
   }
   const credentialsFile = join(config.homedir, '.claude', '.credentials.json');
   return createFileStore(credentialsFile);

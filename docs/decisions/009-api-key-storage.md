@@ -7,7 +7,7 @@
 
 Currently only OAuth subscriptions (Pro/Max/Team/Enterprise) are supported. Claude Code also supports direct API key auth, stored differently:
 
-- **OAuth:** Keychain (macOS) or `~/.claude/.credentials.json` (Linux) + `oauthAccount` in `~/.claude.json`
+- **OAuth:** System keyring (macOS/Windows) or `~/.claude/.credentials.json` (Linux) + `oauthAccount` in `~/.claude.json`
 - **API key:** `ANTHROPIC_API_KEY` in `~/.claude/settings.json` → `env` field (as of 2026-03-25; verify before implementing)
 
 Switching API key profiles requires writing to `settings.json`, which the OAuth flow deliberately avoids. The `CredentialStore` interface is typed to `OAuthCredentials`, so API key storage doesn't fit the existing backend abstraction.

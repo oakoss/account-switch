@@ -74,7 +74,7 @@ Now when you `cd` into that directory, acsw switches to the `work` profile autom
 
 ## How it works
 
-- Swaps OAuth credentials (macOS Keychain or `~/.claude/.credentials.json` on Linux) and the `oauthAccount` field in `~/.claude.json`
+- Swaps OAuth credentials (system keyring on macOS/Windows, `~/.claude/.credentials.json` on Linux) and the `oauthAccount` field in `~/.claude.json`
 - Never touches `settings.json`, memory, plugins, or project config
 - Saves the current profile back before switching (no stale tokens)
 - Warns if Claude Code is running

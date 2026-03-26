@@ -106,7 +106,7 @@ export type SwitchResult =
 /**
  * Check preconditions and switch profile if safe.
  * Returns a discriminated union for expected states (not-found, already-active, blocked).
- * Throws on infrastructure failures (credential I/O, keychain, rollback).
+ * Throws on infrastructure failures (credential I/O, keyring, rollback).
  */
 export async function attemptSwitch(
   name: string,

@@ -26,9 +26,9 @@ Several community solutions exist, but each has tradeoffs:
 
 `acsw` is purpose-built with three principles:
 
-1. **Minimal dependencies** — Only 2 runtime deps (citty, `@clack/prompts`). Built with Bun, compiles to a standalone binary.
+1. **Minimal dependencies** — Only 3 runtime deps (citty, `@clack/prompts`, `@napi-rs/keyring`). Built with Bun, compiles to a standalone binary.
 2. **Minimal scope** — Only swaps credentials and `oauthAccount` data. Never touches `settings.json`, memory/chat history, plugins, or extensions.
-3. **Secure storage** — Uses macOS Keychain on Mac, file-based storage on Linux/Windows with strict permissions (0o600).
+3. **Secure storage** — Uses system keyring on macOS/Windows, file-based storage on Linux with strict permissions (0o600).
 
 ## What it does
 
@@ -52,7 +52,7 @@ When you switch profiles:
 - **Metadata** — Each profile shows subscription tier (Free, Pro, Max, Team, Enterprise)
 - **Repair command** — Validates profile integrity and fixes permissions automatically
 - **Shell hook** — Auto-switch profiles on `cd` with `.acswrc` project config (like fnm for Node.js)
-- **Cross-platform** — macOS (Keychain), Linux (file-based), Windows (file-based)
+- **Cross-platform** — macOS (Keychain), Windows (Credential Vault), Linux (file-based)
 
 ## Installation
 
@@ -69,7 +69,7 @@ cp dist/acsw ~/.local/bin/
 ### Requirements
 
 - Bun 1.0+
-- macOS 10.12+ (Keychain), or Linux/Windows with file access
+- macOS 10.12+, Windows 10+, or Linux
 - At least one active Claude Code login
 
 ## Getting started

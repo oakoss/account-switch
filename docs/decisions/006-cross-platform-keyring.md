@@ -41,8 +41,7 @@ Adopt `@napi-rs/keyring` to replace platform-specific credential backends with a
 
 ## Consequences
 
-- Will replace 141-line `keychain.ts` with ~30-line `keyring.ts` backend
-- Unifies macOS/Windows/Linux behind a single `CredentialStore` implementation
-- File-based fallback remains for headless Linux without D-Bus/libsecret
-- Contained change — the `CredentialStore` interface is already the right seam
-- Adds the third runtime dependency (after citty and @clack/prompts)
+- Replaced 119-line `keychain.ts` with 83-line `keyring.ts` backend
+- macOS and Windows use system keyring; Linux uses file-based fallback
+- `CredentialStore` interface unchanged — contained change at the backend layer
+- Third runtime dependency (after citty and @clack/prompts)

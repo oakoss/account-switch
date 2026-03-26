@@ -169,7 +169,7 @@ Use factories from `tests/helpers/mock-providers.ts`:
 - `createFailingProvider(snapshot, failOnRestore, failOnRollback)` — for testing rollback paths
 - `mockResolver(provider)` — wraps a provider as a `ProviderResolver`
 
-### Testing Claude provider without Keychain
+### Testing Claude provider without system keyring
 
 Set `platform: 'linux'` in `ProviderConfig` to force the file-based credential backend:
 

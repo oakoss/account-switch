@@ -8,7 +8,7 @@ export const CLAUDE_JSON = join(homedir(), '.claude.json');
 export const PROFILES_DIR = join(homedir(), '.acsw');
 export const STATE_FILE = join(PROFILES_DIR, 'state.json');
 
-export const KEYCHAIN_SERVICE = 'Claude Code-credentials';
+export const KEYRING_SERVICE = 'Claude Code-credentials';
 
 export const PROFILE_NAME_REGEX = /^[a-zA-Z0-9_-]+$/;
 
@@ -43,12 +43,12 @@ export function createProviderConfig(): ProviderConfig {
   };
 }
 
-export function getKeychainAccount(): string {
-  const user = process.env.USER;
+export function getKeyringAccount(): string {
+  const user = process.env.USER ?? process.env.USERNAME;
   if (!user) {
     throw new Error(
-      'Could not determine system username ($USER is not set). ' +
-        'This is required for macOS Keychain access.',
+      'Could not determine system username ($USER/$USERNAME is not set). ' +
+        'This is required for credential storage.',
     );
   }
   return user;

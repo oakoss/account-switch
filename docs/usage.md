@@ -560,13 +560,14 @@ All commands complete in < 1 second:
 - `acsw use <name>` — ~300ms (read + write + atomic ops)
 - `acsw repair` — ~50-100ms per profile
 
-No network calls. All operations are local filesystem + macOS Keychain (if applicable).
+No network calls. All operations are local filesystem + system keyring (if applicable).
 
 ## Security notes
 
 - Credentials are stored securely:
   - **macOS:** Encrypted in system Keychain, locked with screen
-  - **Linux/Windows:** File with mode 600 (read/write by user only)
+  - **Windows:** Encrypted in Credential Vault via DPAPI
+  - **Linux:** File with mode 600 (read/write by user only)
 - `acsw` never stores passwords, only OAuth tokens
 - `acsw` never modifies `settings.json` or chat history
 - Profile files can't be read by other users (mode 600)

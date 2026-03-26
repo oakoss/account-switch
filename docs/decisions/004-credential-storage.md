@@ -21,10 +21,10 @@ type CredentialStore = {
 
 Backends:
 
-- `keychain.ts` — macOS Keychain via `security` CLI
+- `keyring.ts` — system keyring via `@napi-rs/keyring` (macOS Keychain, Windows Credential Vault)
 - `file.ts` — file-based with atomic write and `chmod 600`
 
-Backend selection is in `src/lib/credentials.ts` based on `ProviderConfig.platform`. The file-based backend remains as fallback for headless Linux without D-Bus/libsecret.
+Backend selection is in `src/lib/credentials.ts` based on `ProviderConfig.platform`: keyring for macOS/Windows, file for Linux.
 
 ## Alternatives considered
 
