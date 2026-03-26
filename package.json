@@ -26,7 +26,7 @@
   "scripts": {
     "attw": "attw --pack .",
     "build": "bun run clean && bun build src/index.ts --compile --outfile dist/acsw",
-    "build:js": "bun run clean && bun build src/index.ts --target node --outfile dist/acsw.js",
+    "build:js": "bun run clean && bun build src/index.ts --target node --external @napi-rs/keyring --outfile dist/acsw.js",
     "changeset": "changeset",
     "changeset:auto": "changeset-conventional",
     "changeset:release": "bun run build:js && changeset publish",
