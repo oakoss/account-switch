@@ -1,6 +1,6 @@
 {
   "name": "@oakoss/account-switch",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Switch between CLI tool accounts. Supports Claude Code OAuth, with more providers planned.",
   "keywords": [
     "account-switcher",
