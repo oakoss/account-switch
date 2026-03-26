@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- [`efefd24`](https://github.com/oakoss/account-switch/commit/efefd242358b3665fa50373f12c4dd8fed1d9a35) Thanks [@jbabin91](https://github.com/jbabin91)! - Extract process detection into platform-specific backends. Adds Windows support via `tasklist` alongside existing `pgrep` for macOS/Linux.
+
 ## 0.5.0
 
 ### Minor Changes
