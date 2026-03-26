@@ -26,7 +26,7 @@ Several community solutions exist, but each has tradeoffs:
 
 `acsw` is purpose-built with three principles:
 
-1. **Minimal dependencies** — Only 3 runtime deps (citty, `@clack/prompts`, `@napi-rs/keyring`). Built with Bun, compiles to a standalone binary.
+1. **Minimal dependencies** — Only 3 runtime deps (citty, `@clack/prompts`, `@napi-rs/keyring`). Uses Node.js APIs for runtime compatibility; Bun as the build tool.
 2. **Minimal scope** — Only swaps credentials and `oauthAccount` data. Never touches `settings.json`, memory/chat history, plugins, or extensions.
 3. **Secure storage** — Uses system keyring on macOS/Windows, file-based storage on Linux with strict permissions (0o600).
 
@@ -68,7 +68,7 @@ cp dist/acsw ~/.local/bin/
 
 ### Requirements
 
-- Bun 1.0+
+- Node.js 18+ (pnpm/npm install) or Bun 1.0+ (build from source)
 - macOS 10.12+, Windows 10+, or Linux
 - At least one active Claude Code login
 

@@ -15,16 +15,16 @@ src/
 │   ├── current.ts              # Show active profile
 │   ├── repair.ts               # Validate and fix profiles
 │   ├── env.ts                  # Shell hook integration (auto-switch on cd)
-│   ├── guard-claude.ts         # Shared Claude-running guard (UI-layer helper)
-│   ├── switch-display.ts      # Shared post-switch display formatting
+│   ├── switch-handler.ts       # Shared switch result handler (blocked-state prompts + display)
 │   └── completions.ts         # Shell completion generation (zsh/bash/fish)
 └── lib/
     ├── types.ts                # Type definitions
     ├── constants.ts            # Paths, regex, provider config factory
     ├── profiles.ts             # Profile CRUD operations
+    ├── switch.ts               # Switch orchestration (attemptSwitch, switchProfile, rollback)
     ├── completions.ts          # Shell completion generators + listProfileNames
     ├── config.ts               # OAuth account in ~/.claude.json
-    ├── env.ts                  # Shell hook logic (findAcswrc, readAcswrc, detectShell, generateHook)
+    ├── env.ts                  # Shell hook logic (findAcswrc, readAcswrc, applyAcswrc, detectShell, generateHook)
     ├── fs.ts                   # Shared file utilities (atomic JSON write, safe reads, isENOENT)
     ├── paths.ts                # Shared profilePaths() for profile directory layout
     ├── process.ts              # Process detection (is Claude running)
@@ -159,34 +159,33 @@ User account info extracted from Claude Code's `~/.claude.json`:
 
 ## Switching algorithm
 
-When you run `acsw use <name>`:
+When you run `acsw use <name>`, two layers handle the switch:
+
+**`attemptSwitch()` — precondition checks:**
 
 ```text
-1. Validate profile exists
-   └─ Read ~/.acsw/<name>/profile.json
+1. Validate profile exists → not-found
+2. Check if already active → already-active
+3. Check for running Claude via ProcessDetector → blocked
+4. If all clear → call switchProfile()
+```
 
-2. Check if already active
-   └─ Return early if state.active === name
+**`switchProfile()` — credential swap with rollback:**
 
-3. Check for running Claude
-   └─ Use ProcessDetector (pgrep on macOS/Linux, tasklist on Windows)
-   └─ Warn user if found, or if check failed (null result)
-
-4. Save current profile
-   └─ Read live credentials from keyring/file
-   └─ Read live oauthAccount from ~/.claude.json
+```text
+1. Snapshot outgoing profile
+   └─ Read live credentials from keyring/file + oauthAccount from ~/.claude.json
    └─ Write both to ~/.acsw/<active>/*
 
-5. Load target profile
+2. Restore target profile (with rollback on failure)
    ├─ Read ~/.acsw/<name>/credentials.json
    ├─ Write to system keyring (macOS/Windows) or ~/.claude/.credentials.json (Linux)
    ├─ Read ~/.acsw/<name>/account.json
    ├─ Write oauthAccount to ~/.claude.json
-   └─ Update state.json with new active profile
-
-6. Update metadata
-   └─ Set lastUsed timestamp in profile.json
+   └─ Update state.json and lastUsed timestamp
 ```
+
+The command layer (`handleSwitchResult`) maps `SwitchResult` to UI: prompts on `blocked`, displays on `switched`, exits on `not-found`.
 
 ### Atomic writes
 
@@ -210,13 +209,23 @@ This ensures partial writes never corrupt live files.
 
 ### `profiles.ts`
 
-Highest-level profile management:
+Profile CRUD and state management:
 
 - `listProfiles()` — Enumerate all profiles with metadata
 - `addOAuthProfile(name)` — Create a new profile from current session
-- `switchProfile(name)` — Execute full switch algorithm
 - `removeProfile(name)` — Delete a profile
 - `validateProfileName(name)` — Check name against `[a-zA-Z0-9_-]+` regex
+- `profileExists(name)` — Check if a profile exists
+- `readState()` / `writeState()` — Read/write active profile state
+- `buildProfileInfo()` — Build display info from raw profile data
+
+### `switch.ts`
+
+Switch orchestration (extracted from profiles.ts):
+
+- `attemptSwitch(name, resolve, config?)` — Check preconditions (exists, already-active, Claude running) and switch if safe. Returns `SwitchResult` discriminated union; throws on infrastructure failures
+- `switchProfile(name, resolve, config)` — Execute full switch: snapshot outgoing, restore target with rollback, update state
+- `SwitchResult` — `switched | already-active | not-found | blocked`
 
 ### `credentials.ts` + `credentials/`
 
@@ -314,9 +323,8 @@ TypeScript type definitions:
 1. List all profiles with listProfiles()
 2. Display @clack/prompts select menu
 3. User picks a profile
-4. Check if already active (return early if so)
-5. Guard claude running
-6. Call switchProfile(selected)
+4. Call attemptSwitch(selected, resolve)
+5. Map result via handleSwitchResult() (prompt on blocked, display on switched)
 ```
 
 ### Add command
@@ -324,11 +332,10 @@ TypeScript type definitions:
 ```text
 1. Validate name format
 2. Check name doesn't already exist
-3. Warn if Claude is running
-4. Read current live credentials
-5. Call addOAuthProfile(name)
-6. Update state.json to active = name
-7. Show success message with email/org
+3. Check Claude status, prompt if running/unknown
+4. Capture snapshot via provider.snapshot()
+5. Call addOAuthProfile(name, provider, config, snapshot)
+6. Show success message
 ```
 
 ### Remove command
