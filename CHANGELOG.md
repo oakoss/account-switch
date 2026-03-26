@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [`8acf5bb`](https://github.com/oakoss/account-switch/commit/8acf5bb3eb25a32fe7958f8d353b7d2f0bcdb3ce) Thanks [@jbabin91](https://github.com/jbabin91)! - Replace macOS Keychain shell-out with `@napi-rs/keyring` for cross-platform credential storage. macOS uses Keychain, Windows uses Credential Vault. Linux remains file-based.
+
+### Patch Changes
+
+- [`098b6f0`](https://github.com/oakoss/account-switch/commit/098b6f0704fc8c6e562f2c20a3e5eef8af2c40b0) Thanks [@jbabin91](https://github.com/jbabin91)! - Unify switch-profile workflow and improve error handling. Permission errors on profile directories now surface correctly instead of being silently ignored.
+
+- [`011b2bc`](https://github.com/oakoss/account-switch/commit/011b2bcaaec0a9fdebb0a98615086d26f3c24f65) Thanks [@jbabin91](https://github.com/jbabin91)! - Consolidate command definitions into a single source of truth. Fixes stale "Validate and repair profiles" description in shell completions.
+
 ## 0.4.0
 
 ### Minor Changes
